@@ -13,6 +13,8 @@ class GithubWebhookResource extends JsonResource
             'id' => $this->id,
             'server_id' => $this->server_id,
             'web_app_id' => $this->web_app_id,
+            'repository' => $this->whenLoaded('webApp', fn () => $this->webApp?->repository_url),
+            'branch' => $this->whenLoaded('webApp', fn () => $this->webApp?->repository_branch),
             'webhook_url' => $this->webhook_url,
             'events' => $this->events,
             'is_active' => $this->is_active,

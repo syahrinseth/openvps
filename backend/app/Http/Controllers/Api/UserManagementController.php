@@ -61,7 +61,7 @@ class UserManagementController extends Controller
 
         return response()->json([
             'message' => 'User created successfully.',
-            'user' => new UserResource($user->load('roles')),
+            'data' => new UserResource($user->load('roles')),
         ], 201);
     }
 
@@ -73,7 +73,7 @@ class UserManagementController extends Controller
         $user->load('roles')->loadCount('servers');
 
         return response()->json([
-            'user' => new UserResource($user),
+            'data' => new UserResource($user),
         ]);
     }
 
@@ -102,7 +102,7 @@ class UserManagementController extends Controller
 
         return response()->json([
             'message' => 'User updated successfully.',
-            'user' => new UserResource($user->fresh()->load('roles')),
+            'data' => new UserResource($user->fresh()->load('roles')),
         ]);
     }
 
@@ -149,7 +149,7 @@ class UserManagementController extends Controller
 
         return response()->json([
             'message' => 'Role assigned successfully.',
-            'user' => new UserResource($user->fresh()->load('roles')),
+            'data' => new UserResource($user->fresh()->load('roles')),
         ]);
     }
 }

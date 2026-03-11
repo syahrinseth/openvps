@@ -54,7 +54,7 @@ class FirewallController extends Controller
 
             return response()->json([
                 'message' => 'Firewall rule added successfully.',
-                'firewall_rule' => new FirewallRuleResource($rule),
+                'data' => new FirewallRuleResource($rule),
             ], 201);
         } catch (Exception $e) {
             return response()->json([
@@ -73,7 +73,7 @@ class FirewallController extends Controller
         $this->authorizeRuleBelongsToServer($firewallRule, $server);
 
         return response()->json([
-            'firewall_rule' => new FirewallRuleResource($firewallRule),
+            'data' => new FirewallRuleResource($firewallRule),
         ]);
     }
 
@@ -103,7 +103,7 @@ class FirewallController extends Controller
 
         return response()->json([
             'message' => 'Firewall rule updated successfully.',
-            'firewall_rule' => new FirewallRuleResource($firewallRule->fresh()),
+            'data' => new FirewallRuleResource($firewallRule->fresh()),
         ]);
     }
 

@@ -79,7 +79,7 @@ class NginxController extends Controller
 
             return response()->json([
                 'message' => 'Nginx config created successfully.',
-                'nginx_config' => new NginxConfigResource($config),
+                'data' => new NginxConfigResource($config),
             ], 201);
         } catch (Exception $e) {
             return response()->json([
@@ -100,7 +100,7 @@ class NginxController extends Controller
         $nginxConfig->load(['webApp', 'sslCertificates']);
 
         return response()->json([
-            'nginx_config' => new NginxConfigResource($nginxConfig),
+            'data' => new NginxConfigResource($nginxConfig),
         ]);
     }
 
@@ -129,7 +129,7 @@ class NginxController extends Controller
 
         return response()->json([
             'message' => 'Nginx config updated successfully.',
-            'nginx_config' => new NginxConfigResource($nginxConfig->fresh()),
+            'data' => new NginxConfigResource($nginxConfig->fresh()),
         ]);
     }
 

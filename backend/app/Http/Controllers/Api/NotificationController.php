@@ -41,7 +41,7 @@ class NotificationController extends Controller
 
         return response()->json([
             'message' => 'Notification marked as read.',
-            'notification' => new NotificationResource($notification->fresh()),
+            'data' => new NotificationResource($notification->fresh()),
         ]);
     }
 

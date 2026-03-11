@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Backup;
+use App\Http\Resources\ActivityLogResource;
+use App\Http\Resources\DeploymentResource;
+use App\Http\Resources\ServerMetricResource;
+use App\Models\ActivityLog;
 use App\Models\Deployment;
-use App\Models\Server;
+use App\Models\ServerMetric;
+use App\Models\SslCertificate;
 use App\Models\WebApp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,45 +25,44 @@ class DashboardController extends Controller
 
         $serverIds = $user->servers()->pluck('id');
 
-        $serverCount = $user->servers()->count();
-        $activeServerCount = $user->servers()->where('status', 'active')->count();
-        $appCount = WebApp::whereIn('server_id', $serverIds)->count();
-        $activeAppCount = WebApp::whereIn('server_id', $serverIds)->where('status', 'active')->count();
+        $serversCount = $user->servers()->count();
+        $activeServers = $user->servers()->where('status', 'active')->count();
+        $webAppsCount = WebApp::whereIn('server_id', $serverIds)->count();
+
+        $sslExpiringSoon = SslCertificate::whereIn('server_id', $serverIds)
+            ->where('status', 'active')
+            ->where('expires_at', '<=', now()->addDays(30))
+            ->where('expires_at', '>', now())
+            ->count();
 
         $recentDeployments = Deployment::whereIn('server_id', $serverIds)
             ->latest()
             ->limit(5)
             ->get();
 
-        $failedDeployments = Deployment::whereIn('server_id', $serverIds)
-            ->where('status', 'failed')
-            ->where('created_at', '>=', now()->subDays(7))
-            ->count();
+        $recentActivity = ActivityLog::where(function ($query) use ($user, $serverIds) {
+            $query->where('user_id', $user->id)
+                ->orWhereIn('server_id', $serverIds);
+        })
+            ->latest()
+            ->limit(10)
+            ->get();
 
-        $backupCount = Backup::whereIn('server_id', $serverIds)->count();
-
-        $unreadNotifications = $user->notifications()
-            ->whereNull('read_at')
-            ->count();
+        $serverMetrics = ServerMetric::whereIn('server_id', $serverIds)
+            ->latest('recorded_at')
+            ->limit(20)
+            ->get();
 
         return response()->json([
-            'stats' => [
-                'total_servers' => $serverCount,
-                'active_servers' => $activeServerCount,
-                'total_apps' => $appCount,
-                'active_apps' => $activeAppCount,
-                'failed_deployments_7d' => $failedDeployments,
-                'total_backups' => $backupCount,
-                'unread_notifications' => $unreadNotifications,
+            'data' => [
+                'servers_count' => $serversCount,
+                'web_apps_count' => $webAppsCount,
+                'active_servers' => $activeServers,
+                'ssl_expiring_soon' => $sslExpiringSoon,
+                'recent_deployments' => DeploymentResource::collection($recentDeployments),
+                'recent_activity' => ActivityLogResource::collection($recentActivity),
+                'server_metrics' => ServerMetricResource::collection($serverMetrics),
             ],
-            'recent_deployments' => $recentDeployments->map(fn ($d) => [
-                'id' => $d->id,
-                'web_app_id' => $d->web_app_id,
-                'status' => $d->status,
-                'commit_hash' => $d->commit_hash,
-                'branch' => $d->branch,
-                'created_at' => $d->created_at,
-            ]),
         ]);
     }
 }

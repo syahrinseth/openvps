@@ -21,6 +21,21 @@ class DeploymentController extends Controller
     ) {}
 
     /**
+     * List all deployments across all web apps on a server.
+     */
+    public function serverIndex(Request $request, Server $server): JsonResponse
+    {
+        $this->authorizeServerAccess($server);
+
+        $deployments = Deployment::where('server_id', $server->id)
+            ->with(['user', 'webApp'])
+            ->latest()
+            ->paginate($request->input('per_page', 15));
+
+        return response()->json(DeploymentResource::collection($deployments)->response()->getData(true));
+    }
+
+    /**
      * List deployments for a web app.
      */
     public function index(Request $request, Server $server, WebApp $webApp): JsonResponse
@@ -48,8 +63,7 @@ class DeploymentController extends Controller
         $deployment->load(['user', 'webApp']);
 
         return response()->json([
-            'deployment' => new DeploymentResource($deployment),
-            'log' => $this->deploymentService->getDeploymentLog($deployment),
+            'data' => new DeploymentResource($deployment),
         ]);
     }
 
@@ -75,7 +89,7 @@ class DeploymentController extends Controller
 
             return response()->json([
                 'message' => 'Rollback completed successfully.',
-                'deployment' => new DeploymentResource($rollbackDeployment),
+                'data' => new DeploymentResource($rollbackDeployment),
             ]);
         } catch (Exception $e) {
             return response()->json([

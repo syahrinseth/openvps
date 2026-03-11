@@ -74,7 +74,7 @@ class BackupController extends Controller
 
             return response()->json([
                 'message' => 'Backup created successfully.',
-                'backup' => new BackupResource($backup),
+                'data' => new BackupResource($backup),
             ], 201);
         } catch (Exception $e) {
             return response()->json([
@@ -95,7 +95,7 @@ class BackupController extends Controller
         $backup->load(['webApp', 'database']);
 
         return response()->json([
-            'backup' => new BackupResource($backup),
+            'data' => new BackupResource($backup),
         ]);
     }
 

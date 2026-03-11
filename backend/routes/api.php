@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ActivityLogController;
+use App\Http\Controllers\Api\CronJobController;
 
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -36,7 +38,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Servers
     Route::apiResource('servers', ServerController::class);
     Route::post('/servers/{server}/test-connection', [ServerController::class, 'testConnection']);
-    Route::get('/servers/{server}/metrics', [ServerController::class, 'metrics']);
 
     // Server nested resources
     Route::prefix('servers/{server}')->group(function () {
@@ -69,7 +70,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // GitHub Webhooks
         Route::apiResource('github-webhooks', GithubWebhookController::class);
 
-        // Deployments (nested under web apps)
+        // Deployments
+        Route::get('/deployments', [DeploymentController::class, 'serverIndex']);
         Route::get('/web-apps/{web_app}/deployments', [DeploymentController::class, 'index']);
         Route::get('/web-apps/{web_app}/deployments/{deployment}', [DeploymentController::class, 'show']);
         Route::post('/web-apps/{web_app}/deployments/{deployment}/rollback', [DeploymentController::class, 'rollback']);
@@ -82,7 +84,14 @@ Route::middleware('auth:sanctum')->group(function () {
         // Backups
         Route::apiResource('backups', BackupController::class)->except(['update']);
         Route::post('/backups/{backup}/restore', [BackupController::class, 'restore']);
+
+        // Cron Jobs
+        Route::apiResource('cron-jobs', CronJobController::class);
     });
+
+    // Activity Logs
+    Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+    Route::get('/activity-logs/{activityLog}', [ActivityLogController::class, 'show']);
 
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);

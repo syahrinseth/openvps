@@ -66,7 +66,7 @@ class SslCertificateController extends Controller
 
             return response()->json([
                 'message' => 'SSL certificate requested successfully.',
-                'ssl_certificate' => new SslCertificateResource($certificate),
+                'data' => new SslCertificateResource($certificate),
             ], 201);
         } catch (Exception $e) {
             return response()->json([
@@ -87,7 +87,7 @@ class SslCertificateController extends Controller
         $daysRemaining = $this->sslService->checkExpiration($sslCertificate);
 
         return response()->json([
-            'ssl_certificate' => new SslCertificateResource($sslCertificate),
+            'data' => new SslCertificateResource($sslCertificate),
             'days_until_expiration' => $daysRemaining,
         ]);
     }
@@ -144,7 +144,7 @@ class SslCertificateController extends Controller
             return response()->json([
                 'message' => $renewed ? 'SSL certificate renewed successfully.' : 'SSL certificate renewal failed.',
                 'renewed' => $renewed,
-                'ssl_certificate' => new SslCertificateResource($sslCertificate->fresh()),
+                'data' => new SslCertificateResource($sslCertificate->fresh()),
             ]);
         } catch (Exception $e) {
             return response()->json([

@@ -5,12 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Server\StoreServerRequest;
 use App\Http\Requests\Server\UpdateServerRequest;
-use App\Http\Resources\ServerMetricResource;
 use App\Http\Resources\ServerResource;
 use App\Models\Server;
 use App\Services\ActivityLogService;
 use App\Services\ServerConnectionService;
-use App\Services\ServerMonitorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,7 +16,6 @@ class ServerController extends Controller
 {
     public function __construct(
         protected ServerConnectionService $connectionService,
-        protected ServerMonitorService $monitorService,
         protected ActivityLogService $activityLog,
     ) {}
 
@@ -59,7 +56,7 @@ class ServerController extends Controller
 
         return response()->json([
             'message' => 'Server created successfully.',
-            'server' => new ServerResource($server),
+            'data' => new ServerResource($server),
         ], 201);
     }
 
@@ -73,7 +70,7 @@ class ServerController extends Controller
         $server->loadCount('webApps');
 
         return response()->json([
-            'server' => new ServerResource($server),
+            'data' => new ServerResource($server),
         ]);
     }
 
@@ -103,7 +100,7 @@ class ServerController extends Controller
 
         return response()->json([
             'message' => 'Server updated successfully.',
-            'server' => new ServerResource($server->fresh()),
+            'data' => new ServerResource($server->fresh()),
         ]);
     }
 
@@ -143,23 +140,6 @@ class ServerController extends Controller
         return response()->json([
             'connected' => $connected,
             'message' => $connected ? 'Connection successful.' : 'Connection failed.',
-        ]);
-    }
-
-    /**
-     * Get server metrics.
-     */
-    public function metrics(Request $request, Server $server): JsonResponse
-    {
-        $this->authorizeServerAccess($server);
-
-        $metrics = $server->serverMetrics()
-            ->latest('recorded_at')
-            ->limit($request->input('limit', 50))
-            ->get();
-
-        return response()->json([
-            'metrics' => ServerMetricResource::collection($metrics),
         ]);
     }
 

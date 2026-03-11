@@ -54,12 +54,12 @@ class ServerMetricController extends Controller
         if (!$metric) {
             return response()->json([
                 'message' => 'No metrics found for this server.',
-                'metric' => null,
+                'data' => null,
             ]);
         }
 
         return response()->json([
-            'metric' => new ServerMetricResource($metric),
+            'data' => new ServerMetricResource($metric),
         ]);
     }
 
@@ -76,7 +76,7 @@ class ServerMetricController extends Controller
 
             return response()->json([
                 'message' => 'Metrics collected successfully.',
-                'metric' => new ServerMetricResource($metric),
+                'data' => new ServerMetricResource($metric),
                 'status' => $status,
             ]);
         } catch (Exception $e) {

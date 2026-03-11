@@ -12,15 +12,15 @@ class FirewallRuleResource extends JsonResource
         return [
             'id' => $this->id,
             'server_id' => $this->server_id,
-            'name' => $this->name,
             'rule_type' => $this->rule_type,
             'direction' => $this->direction,
             'protocol' => $this->protocol,
             'port' => $this->port,
             'from_ip' => $this->from_ip,
             'to_ip' => $this->to_ip,
-            'is_active' => $this->is_active,
             'description' => $this->description,
+            'is_active' => $this->is_active,
+            'sort_order' => 0,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

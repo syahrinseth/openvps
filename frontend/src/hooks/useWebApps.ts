@@ -65,3 +65,31 @@ export function useDeleteWebApp(serverId: number) {
     },
   });
 }
+
+export function useUpdateWebApp(serverId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ appId, data }: { appId: number; data: Partial<WebAppFormData> }) => {
+      const { data: response } = await api.put(`/servers/${serverId}/web-apps/${appId}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servers', serverId, 'web-apps'] });
+      toast.success('Web app updated successfully');
+    },
+  });
+}
+
+export function useRestartWebApp(serverId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (appId: number) => {
+      const { data } = await api.post(`/servers/${serverId}/web-apps/${appId}/restart`);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servers', serverId, 'web-apps'] });
+      toast.success('Web app restarted');
+    },
+  });
+}

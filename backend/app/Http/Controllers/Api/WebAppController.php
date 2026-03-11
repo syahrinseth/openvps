@@ -66,7 +66,7 @@ class WebAppController extends Controller
 
         return response()->json([
             'message' => 'Web app created successfully.',
-            'web_app' => new WebAppResource($webApp),
+            'data' => new WebAppResource($webApp),
         ], 201);
     }
 
@@ -83,7 +83,7 @@ class WebAppController extends Controller
         }]);
 
         return response()->json([
-            'web_app' => new WebAppResource($webApp),
+            'data' => new WebAppResource($webApp),
         ]);
     }
 
@@ -122,7 +122,7 @@ class WebAppController extends Controller
 
         return response()->json([
             'message' => 'Web app updated successfully.',
-            'web_app' => new WebAppResource($webApp->fresh()),
+            'data' => new WebAppResource($webApp->fresh()),
         ]);
     }
 
@@ -170,7 +170,7 @@ class WebAppController extends Controller
 
             return response()->json([
                 'message' => 'Deployment started successfully.',
-                'deployment' => new DeploymentResource($deployment),
+                'data' => new DeploymentResource($deployment),
             ]);
         } catch (Exception $e) {
             return response()->json([

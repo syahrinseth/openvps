@@ -66,7 +66,7 @@ class DatabaseUserController extends Controller
 
             return response()->json([
                 'message' => 'Database user created successfully.',
-                'database_user' => new DatabaseUserResource($dbUser),
+                'data' => new DatabaseUserResource($dbUser),
             ], 201);
         } catch (Exception $e) {
             return response()->json([
@@ -87,7 +87,7 @@ class DatabaseUserController extends Controller
         $databaseUser->load('database');
 
         return response()->json([
-            'database_user' => new DatabaseUserResource($databaseUser),
+            'data' => new DatabaseUserResource($databaseUser),
         ]);
     }
 
@@ -123,7 +123,7 @@ class DatabaseUserController extends Controller
 
             return response()->json([
                 'message' => 'Database user updated successfully.',
-                'database_user' => new DatabaseUserResource($databaseUser->fresh()->load('database')),
+                'data' => new DatabaseUserResource($databaseUser->fresh()->load('database')),
             ]);
         } catch (Exception $e) {
             return response()->json([

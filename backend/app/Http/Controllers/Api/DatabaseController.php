@@ -61,7 +61,7 @@ class DatabaseController extends Controller
 
             return response()->json([
                 'message' => 'Database created successfully.',
-                'database' => new DatabaseResource($database),
+                'data' => new DatabaseResource($database),
             ], 201);
         } catch (Exception $e) {
             return response()->json([
@@ -82,7 +82,7 @@ class DatabaseController extends Controller
         $database->load('databaseUsers');
 
         return response()->json([
-            'database' => new DatabaseResource($database),
+            'data' => new DatabaseResource($database),
         ]);
     }
 
@@ -136,7 +136,7 @@ class DatabaseController extends Controller
 
             return response()->json([
                 'message' => 'Database backup created successfully.',
-                'backup' => new BackupResource($backup),
+                'data' => new BackupResource($backup),
             ]);
         } catch (Exception $e) {
             return response()->json([

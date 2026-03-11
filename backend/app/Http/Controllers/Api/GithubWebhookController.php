@@ -69,7 +69,7 @@ class GithubWebhookController extends Controller
 
         return response()->json([
             'message' => 'GitHub webhook created successfully.',
-            'webhook' => new GithubWebhookResource($webhook),
+            'data' => new GithubWebhookResource($webhook->load('webApp')),
             'secret' => $secret, // Only shown once at creation
         ], 201);
     }
@@ -85,7 +85,7 @@ class GithubWebhookController extends Controller
         $githubWebhook->load('webApp');
 
         return response()->json([
-            'webhook' => new GithubWebhookResource($githubWebhook),
+            'data' => new GithubWebhookResource($githubWebhook),
         ]);
     }
 
@@ -115,7 +115,7 @@ class GithubWebhookController extends Controller
 
         return response()->json([
             'message' => 'GitHub webhook updated successfully.',
-            'webhook' => new GithubWebhookResource($githubWebhook->fresh()),
+            'data' => new GithubWebhookResource($githubWebhook->fresh()->load('webApp')),
         ]);
     }
 
