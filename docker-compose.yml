@@ -84,6 +84,12 @@ services:
       - DB_HOST=mysql
       - REDIS_HOST=redis
       - QUEUE_CONNECTION=redis
+      - REVERB_APP_ID=${REVERB_APP_ID:-openvps-app}
+      - REVERB_APP_KEY=${REVERB_APP_KEY:-openvps-key}
+      - REVERB_APP_SECRET=${REVERB_APP_SECRET:-openvps-secret}
+      - REVERB_HOST=0.0.0.0
+      - REVERB_PORT=8080
+      - REVERB_SCHEME=http
     depends_on:
       mysql:
         condition: service_healthy
@@ -134,7 +140,7 @@ services:
       - openvps-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USERNAME:-openvps}", "-p${DB_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5

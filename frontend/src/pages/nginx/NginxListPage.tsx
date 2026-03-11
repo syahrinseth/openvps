@@ -124,7 +124,7 @@ export default function NginxListPage() {
   const handleToggleActive = async (config: NginxConfig) => {
     await updateConfig.mutateAsync({
       id: config.id,
-      config_content: config.config_content,
+      is_active: !config.is_active,
     });
   };
 

@@ -12,7 +12,7 @@ import {
   Terminal,
   Settings,
 } from 'lucide-react';
-import { useWebApp, useDeployWebApp } from '@/hooks/useWebApps';
+import { useWebApp, useDeployWebApp, useStartWebApp, useStopWebApp, useRestartWebApp } from '@/hooks/useWebApps';
 import Header from '@/components/layout/Header';
 import Card, { CardHeader } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -54,6 +54,9 @@ export default function WebAppDetailPage() {
 
   const { data: app, isLoading, error } = useWebApp(serverIdNum, appIdNum);
   const deploy = useDeployWebApp(serverIdNum);
+  const start = useStartWebApp(serverIdNum);
+  const stop = useStopWebApp(serverIdNum);
+  const restart = useRestartWebApp(serverIdNum);
 
   if (isLoading) {
     return (
@@ -141,15 +144,32 @@ export default function WebAppDetailPage() {
       <Card className="mb-6">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-gray-700">Quick Actions:</span>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => start.mutate(app.id)}
+            isLoading={start.isPending}
+            disabled={app.status === 'running'}
+          >
             <Play className="w-3.5 h-3.5 mr-1" />
             Start
           </Button>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => stop.mutate(app.id)}
+            isLoading={stop.isPending}
+            disabled={app.status === 'stopped'}
+          >
             <Square className="w-3.5 h-3.5 mr-1" />
             Stop
           </Button>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => restart.mutate(app.id)}
+            isLoading={restart.isPending}
+          >
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             Restart
           </Button>

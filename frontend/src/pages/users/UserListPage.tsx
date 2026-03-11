@@ -123,14 +123,16 @@ export default function UserListPage() {
 
   const handleCreate = async (data: CreateUserForm) => {
     try {
-      await createUser.mutateAsync({
+      const newUser = await createUser.mutateAsync({
         name: data.name,
         email: data.email,
         password: data.password,
         password_confirmation: data.password,
       });
-      // Assign role after creation if the hook supports it;
-      // We'll rely on the backend accepting role during create or assign afterwards.
+      // Assign the selected role immediately after creation
+      if (data.role && newUser?.id) {
+        await assignRole.mutateAsync({ id: newUser.id, role: data.role });
+      }
       setShowCreateModal(false);
       createForm.reset();
     } catch (err: any) {
@@ -155,7 +157,7 @@ export default function UserListPage() {
 
   const openRoleModal = (user: User) => {
     setRoleUser(user);
-    setSelectedRole(user.roles?.[0]?.name ?? '');
+    setSelectedRole(user.roles?.[0] ?? '');
   };
 
   const handleAssignRole = async () => {
@@ -180,9 +182,9 @@ export default function UserListPage() {
 
   // --- Summary stats ---
   const totalUsers = users?.length ?? 0;
-  const adminsCount = users?.filter((u) => u.roles.some((r) => r.name === 'admin')).length ?? 0;
-  const managersCount = users?.filter((u) => u.roles.some((r) => r.name === 'server-manager')).length ?? 0;
-  const developersCount = users?.filter((u) => u.roles.some((r) => r.name === 'developer')).length ?? 0;
+  const adminsCount = users?.filter((u) => u.roles.includes('admin')).length ?? 0;
+  const managersCount = users?.filter((u) => u.roles.includes('server-manager')).length ?? 0;
+  const developersCount = users?.filter((u) => u.roles.includes('developer')).length ?? 0;
 
   // --- Loading ---
   if (isLoading) {
@@ -241,8 +243,8 @@ export default function UserListPage() {
         <div className="flex flex-wrap gap-1">
           {user.roles.length > 0 ? (
             user.roles.map((role) => (
-              <Badge key={role.id} variant={roleBadgeVariant[role.name] || 'default'}>
-                {role.name}
+              <Badge key={role} variant={roleBadgeVariant[role] || 'default'}>
+                {role}
               </Badge>
             ))
           ) : (

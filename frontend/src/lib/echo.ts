@@ -25,6 +25,18 @@ function createEcho(): Echo<'pusher'> {
   // Strip protocol from host if present (pusher-js wants just the hostname)
   const host = rawHost.replace(/^https?:\/\//, '');
 
+  // Use a Proxy so the Authorization header is read from localStorage at
+  // the moment each auth request is made — not at singleton creation time.
+  const authHeaders = new Proxy({} as Record<string, string>, {
+    get(_target, prop: string) {
+      if (prop === 'Authorization') {
+        return `Bearer ${localStorage.getItem('auth_token') ?? ''}`;
+      }
+      if (prop === 'Accept') return 'application/json';
+      return undefined;
+    },
+  });
+
   return new Echo({
     broadcaster: 'reverb',
     key: appKey,
@@ -33,13 +45,10 @@ function createEcho(): Echo<'pusher'> {
     wssPort: scheme === 'https' ? port : undefined,
     forceTLS: scheme === 'https',
     enabledTransports: ['ws', 'wss'],
-    // Auth endpoint for private channels — uses the Sanctum token from localStorage
-    authEndpoint: '/api/broadcasting/auth',
+    // Auth endpoint for private channels — Laravel registers /broadcasting/auth automatically
+    authEndpoint: '/broadcasting/auth',
     auth: {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('auth_token') ?? ''}`,
-        Accept: 'application/json',
-      },
+      headers: authHeaders,
     },
   });
 }

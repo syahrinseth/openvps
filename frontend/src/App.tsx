@@ -9,6 +9,7 @@ import ServerDetailPage from '@/pages/servers/ServerDetailPage';
 import AddServerPage from '@/pages/servers/AddServerPage';
 import WebAppListPage from '@/pages/webapps/WebAppListPage';
 import WebAppDetailPage from '@/pages/webapps/WebAppDetailPage';
+import AddWebAppPage from '@/pages/webapps/AddWebAppPage';
 import NginxListPage from '@/pages/nginx/NginxListPage';
 import SslListPage from '@/pages/ssl/SslListPage';
 import FirewallListPage from '@/pages/firewall/FirewallListPage';
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="servers/add" element={<AddServerPage />} />
         <Route path="servers/:id" element={<ServerDetailPage />} />
         <Route path="web-apps" element={<WebAppListPage />} />
+        <Route path="web-apps/create" element={<AddWebAppPage />} />
         <Route path="web-apps/:serverId/:appId" element={<WebAppDetailPage />} />
         <Route path="nginx" element={<NginxListPage />} />
         <Route path="ssl" element={<SslListPage />} />

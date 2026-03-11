@@ -173,8 +173,8 @@ class CronJobController extends Controller
         }
 
         $user = $cronJobs->first()?->user ?? 'root';
-        $escapedCrontab = addslashes($crontab);
-        $command = "echo \"{$escapedCrontab}\" | crontab -u {$user} -";
+        $escapedUser = escapeshellarg($user);
+        $command = 'echo ' . escapeshellarg($crontab) . " | crontab -u {$escapedUser} -";
 
         $this->connectionService->execute($server, $command);
     }

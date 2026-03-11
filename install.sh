@@ -246,7 +246,7 @@ SESSION_ENCRYPT=true
 SESSION_PATH=/
 SESSION_DOMAIN=null
 
-BROADCAST_CONNECTION=log
+BROADCAST_CONNECTION=reverb
 FILESYSTEM_DISK=local
 QUEUE_CONNECTION=redis
 
@@ -256,6 +256,13 @@ REDIS_CLIENT=phpredis
 REDIS_HOST=redis
 REDIS_PASSWORD=null
 REDIS_PORT=6379
+
+REVERB_APP_ID=openvps-app
+REVERB_APP_KEY=openvps-key-$(openssl rand -hex 8)
+REVERB_APP_SECRET=openvps-secret-$(openssl rand -hex 16)
+REVERB_HOST=0.0.0.0
+REVERB_PORT=8080
+REVERB_SCHEME=http
 
 MAIL_MAILER=log
 MAIL_SCHEME=null
@@ -279,6 +286,16 @@ print_header "Step 8: Building frontend"
 
 cd ${INSTALL_DIR}/frontend
 npm install
+
+# Create frontend .env with Reverb connection details (uses nginx to proxy /app path)
+cat > ${INSTALL_DIR}/frontend/.env.production << FRONTENDENV
+VITE_API_URL=http://${SERVER_IP}
+VITE_REVERB_APP_KEY=openvps-key
+VITE_REVERB_HOST=${SERVER_IP}
+VITE_REVERB_PORT=80
+VITE_REVERB_SCHEME=http
+FRONTENDENV
+
 npm run build
 
 print_success "Frontend built successfully"

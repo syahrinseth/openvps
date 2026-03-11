@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const hasRole = (role: string): boolean => {
-    return user?.roles?.some((r) => r.name === role) ?? false;
+    return user?.roles?.includes(role) ?? false;
   };
 
   const hasPermission = (_permission: string): boolean => {

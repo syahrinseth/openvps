@@ -168,10 +168,7 @@ export default function FirewallListPage() {
   const handleToggleActive = async (rule: FirewallRule) => {
     await updateRule.mutateAsync({
       id: rule.id,
-      rule_type: rule.rule_type,
-      direction: rule.direction,
-      protocol: rule.protocol,
-      port: rule.port,
+      is_active: !rule.is_active,
     });
   };
 

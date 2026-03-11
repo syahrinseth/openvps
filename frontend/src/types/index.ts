@@ -4,7 +4,7 @@ export interface User {
   name: string;
   email: string;
   email_verified_at: string | null;
-  roles: Role[];
+  roles: string[];
   created_at: string;
   updated_at: string;
 }
@@ -74,7 +74,9 @@ export interface WebAppFormData {
   git_repository?: string;
   git_branch: string;
   deploy_path: string;
+  docker_compose_path?: string;
   port?: number;
+  docker_container_name?: string;
   auto_deploy: boolean;
 }
 

@@ -177,7 +177,7 @@ export default function GithubWebhookListPage() {
     try {
       await updateWebhook.mutateAsync({
         id: webhook.id,
-        events: webhook.events,
+        is_active: !webhook.is_active,
       });
     } catch {
       toast.error('Failed to toggle webhook status');

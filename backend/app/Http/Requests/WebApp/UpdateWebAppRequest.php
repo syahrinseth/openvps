@@ -16,13 +16,13 @@ class UpdateWebAppRequest extends FormRequest
         return [
             'name' => ['sometimes', 'string', 'max:255'],
             'domain' => ['sometimes', 'string', 'max:255'],
-            'app_type' => ['sometimes', 'string', 'in:php,nodejs,python,static,laravel'],
+            'app_type' => ['sometimes', 'string', 'in:laravel,nodejs,react,static,custom'],
             'git_repository' => ['nullable', 'string', 'max:500'],
             'git_branch' => ['nullable', 'string', 'max:255'],
             'deploy_path' => ['nullable', 'string', 'max:500'],
+            'docker_compose_path' => ['nullable', 'string', 'max:500'],
             'port' => ['nullable', 'integer', 'min:1', 'max:65535'],
-            'php_version' => ['nullable', 'string', 'max:10'],
-            'deploy_script' => ['nullable', 'string'],
+            'docker_container_name' => ['nullable', 'string', 'max:255'],
             'environment_variables' => ['nullable', 'string'],
             'auto_deploy' => ['sometimes', 'boolean'],
         ];

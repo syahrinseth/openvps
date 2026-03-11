@@ -30,7 +30,7 @@ class DeploymentService
             'user_id' => Auth::id(),
             'server_id' => $server->id,
             'commit_hash' => $commitHash,
-            'branch' => $webApp->repository_branch ?? 'main',
+            'branch' => $webApp->git_branch ?? 'main',
             'status' => 'pending',
             'started_at' => now(),
         ]);
@@ -42,8 +42,8 @@ class DeploymentService
             $deployment->update(['status' => 'in_progress']);
             broadcast(new DeploymentUpdated($deployment->fresh()))->toOthers();
 
-            $deployPath = $webApp->root_directory;
-            $branch = $webApp->repository_branch ?? 'main';
+            $deployPath = $webApp->deploy_path;
+            $branch = $webApp->git_branch ?? 'main';
             $output = '';
 
             // Pull latest code
@@ -57,10 +57,11 @@ class DeploymentService
             $currentHash = trim($this->connection->execute($server, "cd {$deployPath} && git rev-parse HEAD 2>&1"));
             $commitMessage = trim($this->connection->execute($server, "cd {$deployPath} && git log -1 --pretty=%B 2>&1"));
 
-            // Run deploy script if defined
-            if ($webApp->deploy_script) {
-                $output .= "\n--- Running deploy script ---\n";
-                $output .= $this->connection->execute($server, "cd {$deployPath} && {$webApp->deploy_script} 2>&1");
+            // Run deploy script if defined (docker compose up -d for docker-based apps)
+            if ($webApp->docker_compose_path) {
+                $output .= "\n--- Running docker compose up ---\n";
+                $composeDir = dirname($webApp->docker_compose_path);
+                $output .= $this->connection->execute($server, "cd {$composeDir} && docker compose up -d --build 2>&1");
             }
 
             $deployment->update([
@@ -71,7 +72,7 @@ class DeploymentService
                 'completed_at' => now(),
             ]);
 
-            $webApp->update(['status' => 'active']);
+            $webApp->update(['status' => 'running']);
 
             $freshDeployment = $deployment->fresh();
             broadcast(new DeploymentUpdated($freshDeployment))->toOthers();
@@ -127,16 +128,17 @@ class DeploymentService
         broadcast(new DeploymentUpdated($rollbackDeployment))->toOthers();
 
         try {
-            $deployPath = $webApp->root_directory;
+            $deployPath = $webApp->deploy_path;
             $output = $this->connection->execute(
                 $server,
                 "cd {$deployPath} && git checkout {$deployment->commit_hash} 2>&1"
             );
 
-            // Re-run deploy script
-            if ($webApp->deploy_script) {
-                $output .= "\n--- Running deploy script ---\n";
-                $output .= $this->connection->execute($server, "cd {$deployPath} && {$webApp->deploy_script} 2>&1");
+            // Re-run docker compose if applicable
+            if ($webApp->docker_compose_path) {
+                $output .= "\n--- Running docker compose up ---\n";
+                $composeDir = dirname($webApp->docker_compose_path);
+                $output .= $this->connection->execute($server, "cd {$composeDir} && docker compose up -d --build 2>&1");
             }
 
             $rollbackDeployment->update([

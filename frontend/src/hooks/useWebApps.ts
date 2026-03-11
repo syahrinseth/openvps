@@ -109,3 +109,31 @@ export function useRestartWebApp(serverId: number) {
     },
   });
 }
+
+export function useStartWebApp(serverId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (appId: number) => {
+      const { data } = await api.post(`/servers/${serverId}/web-apps/${appId}/start`);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servers', serverId, 'web-apps'] });
+      toast.success('Web app started');
+    },
+  });
+}
+
+export function useStopWebApp(serverId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (appId: number) => {
+      const { data } = await api.post(`/servers/${serverId}/web-apps/${appId}/stop`);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servers', serverId, 'web-apps'] });
+      toast.success('Web app stopped');
+    },
+  });
+}

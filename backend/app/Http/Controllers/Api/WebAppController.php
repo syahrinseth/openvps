@@ -48,11 +48,7 @@ class WebAppController extends Controller
         $data = $request->validated();
         $data['server_id'] = $server->id;
         $data['user_id'] = $request->user()->id;
-        $data['repository_url'] = $data['git_repository'] ?? null;
-        $data['repository_branch'] = $data['git_branch'] ?? 'main';
-        $data['root_directory'] = $data['deploy_path'] ?? "/var/www/{$data['domain']}";
-        $data['status'] = 'pending';
-        unset($data['git_repository'], $data['git_branch'], $data['deploy_path']);
+        $data['status'] = 'stopped';
 
         $webApp = WebApp::create($data);
 
@@ -96,19 +92,6 @@ class WebAppController extends Controller
         $this->authorizeWebAppBelongsToServer($webApp, $server);
 
         $data = $request->validated();
-
-        if (isset($data['git_repository'])) {
-            $data['repository_url'] = $data['git_repository'];
-            unset($data['git_repository']);
-        }
-        if (isset($data['git_branch'])) {
-            $data['repository_branch'] = $data['git_branch'];
-            unset($data['git_branch']);
-        }
-        if (isset($data['deploy_path'])) {
-            $data['root_directory'] = $data['deploy_path'];
-            unset($data['deploy_path']);
-        }
 
         $webApp->update($data);
 
@@ -181,6 +164,74 @@ class WebAppController extends Controller
     }
 
     /**
+     * Start a web app's process on the server.
+     */
+    public function start(Request $request, Server $server, WebApp $webApp): JsonResponse
+    {
+        $this->authorizeServerAccess($server);
+        $this->authorizeWebAppBelongsToServer($webApp, $server);
+
+        try {
+            $command = "docker compose -f {$webApp->docker_compose_path} up -d 2>&1";
+            $output = $this->connectionService->execute($server, $command);
+
+            $webApp->update(['status' => 'running']);
+
+            $this->activityLog->log(
+                'webapp.started',
+                "Web app '{$webApp->name}' was started",
+                $request->user(),
+                $server,
+                $webApp,
+            );
+
+            return response()->json([
+                'message' => 'Web app started successfully.',
+                'output' => $output,
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Failed to start web app.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Stop a web app's process on the server.
+     */
+    public function stop(Request $request, Server $server, WebApp $webApp): JsonResponse
+    {
+        $this->authorizeServerAccess($server);
+        $this->authorizeWebAppBelongsToServer($webApp, $server);
+
+        try {
+            $command = "docker compose -f {$webApp->docker_compose_path} down 2>&1";
+            $output = $this->connectionService->execute($server, $command);
+
+            $webApp->update(['status' => 'stopped']);
+
+            $this->activityLog->log(
+                'webapp.stopped',
+                "Web app '{$webApp->name}' was stopped",
+                $request->user(),
+                $server,
+                $webApp,
+            );
+
+            return response()->json([
+                'message' => 'Web app stopped successfully.',
+                'output' => $output,
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Failed to stop web app.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Restart a web app's process on the server.
      */
     public function restart(Request $request, Server $server, WebApp $webApp): JsonResponse
@@ -190,11 +241,11 @@ class WebAppController extends Controller
 
         try {
             $appType = $webApp->app_type;
+            $containerName = $webApp->docker_container_name ?? $webApp->name;
             $command = match ($appType) {
-                'nodejs' => "pm2 restart {$webApp->name} 2>&1",
-                'python' => "sudo systemctl restart {$webApp->name} 2>&1",
-                'php', 'laravel' => "sudo systemctl restart php-fpm 2>&1",
-                default => "sudo systemctl restart {$webApp->name} 2>&1",
+                'nodejs' => "docker compose -f {$webApp->docker_compose_path} restart 2>&1",
+                'laravel', 'react', 'static', 'custom' => "docker compose -f {$webApp->docker_compose_path} restart 2>&1",
+                default => "docker restart {$containerName} 2>&1",
             };
 
             $output = $this->connectionService->execute($server, $command);

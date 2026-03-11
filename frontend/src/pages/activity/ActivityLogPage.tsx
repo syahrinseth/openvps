@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Activity,
   Plus,
@@ -184,10 +184,11 @@ export default function ActivityLogPage() {
 
   // Pagination
   const [page, setPage] = useState(1);
+  const [allLogs, setAllLogs] = useState<ActivityLog[]>([]);
   const PER_PAGE = 20;
 
   const {
-    data: logs,
+    data: pagedResult,
     isLoading,
     error,
     isFetching,
@@ -197,8 +198,32 @@ export default function ActivityLogPage() {
     per_page: PER_PAGE,
   });
 
+  const logs = pagedResult?.data;
+
+  // Accumulate logs on each page fetch; reset when filters change
+  const prevFiltersRef = useRef({ serverFilter, page: 1 });
+  useEffect(() => {
+    if (!logs) return;
+    if (prevFiltersRef.current.serverFilter !== serverFilter) {
+      // Filter changed — reset
+      setAllLogs(logs);
+      prevFiltersRef.current = { serverFilter, page: 1 };
+    } else {
+      // Same filter, new page — append (avoid duplicates)
+      setAllLogs((prev) => {
+        const existingIds = new Set(prev.map((l) => l.id));
+        const newEntries = logs.filter((l) => !existingIds.has(l.id));
+        return [...prev, ...newEntries];
+      });
+    }
+  }, [logs, serverFilter]);
+
+  const hasMorePages = pagedResult
+    ? pagedResult.meta.current_page < pagedResult.meta.last_page
+    : false;
+
   // Client-side filtering for action type and date range
-  const filteredLogs = (logs ?? []).filter((entry) => {
+  const filteredLogs = allLogs.filter((entry) => {
     if (actionFilter && !entry.action.toLowerCase().includes(actionFilter.toLowerCase())) {
       return false;
     }
@@ -230,6 +255,7 @@ export default function ActivityLogPage() {
     setDateFrom('');
     setDateTo('');
     setPage(1);
+    setAllLogs([]);
   };
 
   // --- Loading ---
@@ -340,22 +366,24 @@ export default function ActivityLogPage() {
           </div>
 
           {/* Load More */}
-          <div className="flex justify-center pt-4 border-t border-gray-100 mt-2">
-            <Button
-              variant="outline"
-              onClick={() => setPage((p) => p + 1)}
-              disabled={isFetching}
-            >
-              {isFetching ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Loading...
-                </>
-              ) : (
-                'Load More'
-              )}
-            </Button>
-          </div>
+          {hasMorePages && (
+            <div className="flex justify-center pt-4 border-t border-gray-100 mt-2">
+              <Button
+                variant="outline"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={isFetching}
+              >
+                {isFetching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  'Load More'
+                )}
+              </Button>
+            </div>
+          )}
         </Card>
       )}
     </div>

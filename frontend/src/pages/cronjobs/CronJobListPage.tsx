@@ -158,8 +158,7 @@ export default function CronJobListPage() {
     try {
       await updateCronJob.mutateAsync({
         id: job.id,
-        command: job.command,
-        schedule: job.schedule,
+        is_active: !job.is_active,
       });
     } catch {
       toast.error('Failed to toggle cron job status');
