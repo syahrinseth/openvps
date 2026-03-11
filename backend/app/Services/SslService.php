@@ -2,11 +2,14 @@
 
 namespace App\Services;
 
+use App\Mail\SslExpiryMail;
 use App\Models\Server;
 use App\Models\SslCertificate;
+use App\Models\User;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class SslService
 {
@@ -64,6 +67,9 @@ class SslService
 
             $this->nginx->reloadNginx($server);
 
+            // Notify server owner about successful renewal
+            $this->notifyAdmins($cert->fresh(), 0, true);
+
             return true;
         }
 
@@ -114,6 +120,11 @@ class SslService
         foreach ($certificates as $cert) {
             $daysUntilExpiry = $this->checkExpiration($cert);
 
+            // Send expiry warnings (even if auto-renew is enabled, notify at 30 days for visibility)
+            if ($daysUntilExpiry <= 30 && $daysUntilExpiry > 7) {
+                $this->notifyAdmins($cert, $daysUntilExpiry, false);
+            }
+
             if ($daysUntilExpiry <= 30) {
                 try {
                     $renewed = $this->renewCertificate($server, $cert);
@@ -123,6 +134,11 @@ class SslService
                         'days_remaining' => $daysUntilExpiry,
                     ];
                 } catch (Exception $e) {
+                    // Renewal failed — notify urgently if close to expiry
+                    if ($daysUntilExpiry <= 7) {
+                        $this->notifyAdmins($cert, $daysUntilExpiry, false);
+                    }
+
                     $results[] = [
                         'domain' => $cert->domain,
                         'renewed' => false,
@@ -133,5 +149,21 @@ class SslService
         }
 
         return $results;
+    }
+
+    /**
+     * Send SSL expiry / renewal notifications to all admin users.
+     */
+    protected function notifyAdmins(SslCertificate $cert, int $daysRemaining, bool $renewed): void
+    {
+        try {
+            $admins = User::role('admin')->get();
+
+            foreach ($admins as $admin) {
+                Mail::to($admin->email)->queue(new SslExpiryMail($cert, $daysRemaining, $renewed));
+            }
+        } catch (Exception $e) {
+            Log::warning('Failed to send SSL expiry email', ['error' => $e->getMessage()]);
+        }
     }
 }

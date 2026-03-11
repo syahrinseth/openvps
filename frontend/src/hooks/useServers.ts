@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import type { Server, ServerFormData, ApiResponse } from '@/types';
+import type { Server, ServerFormData, ApiResponse, PaginatedResponse } from '@/types';
 import toast from 'react-hot-toast';
 
 export function useServers() {
@@ -9,6 +9,21 @@ export function useServers() {
     queryFn: async () => {
       const { data } = await api.get<ApiResponse<Server[]>>('/servers');
       return data.data;
+    },
+  });
+}
+
+/**
+ * Paginated server list with optional search query.
+ */
+export function useServersPaginated(page: number = 1, search: string = '') {
+  return useQuery({
+    queryKey: ['servers', 'paginated', page, search],
+    queryFn: async () => {
+      const params: Record<string, string | number> = { page };
+      if (search) params.search = search;
+      const { data } = await api.get<PaginatedResponse<Server>>('/servers', { params });
+      return data;
     },
   });
 }

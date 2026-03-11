@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Server, Plus, Wifi, Trash2, ExternalLink } from 'lucide-react';
-import { useServers, useDeleteServer, useTestConnection } from '@/hooks/useServers';
+import { Server, Plus, Wifi, Trash2, ExternalLink, Search } from 'lucide-react';
+import { useServers, useServersPaginated, useDeleteServer, useTestConnection } from '@/hooks/useServers';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -10,6 +10,7 @@ import Badge from '@/components/ui/Badge';
 import StatusIndicator from '@/components/ui/StatusIndicator';
 import EmptyState from '@/components/ui/EmptyState';
 import Modal from '@/components/ui/Modal';
+import Pagination from '@/components/ui/Pagination';
 import type { Server as ServerType } from '@/types';
 
 const providerBadge: Record<string, 'info' | 'success' | 'warning' | 'default'> = {
@@ -23,10 +24,15 @@ const providerBadge: Record<string, 'info' | 'success' | 'warning' | 'default'> 
 
 export default function ServerListPage() {
   const navigate = useNavigate();
-  const { data: servers, isLoading, error } = useServers();
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [deleteModal, setDeleteModal] = useState<ServerType | null>(null);
+
+  // Use paginated hook when search/page is active, flat hook for selects elsewhere
+  const paginated = useServersPaginated(page, search);
+  const { data: allServers } = useServers(); // kept for compatibility with other components
   const deleteServer = useDeleteServer();
   const testConnection = useTestConnection();
-  const [deleteModal, setDeleteModal] = useState<ServerType | null>(null);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Never';
@@ -43,7 +49,15 @@ export default function ServerListPage() {
     setDeleteModal(null);
   };
 
-  if (isLoading) {
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1); // reset to first page on new search
+  };
+
+  const servers = paginated.data?.data ?? [];
+  const meta = paginated.data?.meta;
+
+  if (paginated.isLoading && !paginated.data) {
     return (
       <div>
         <Header title="Servers" description="Manage your server infrastructure" />
@@ -54,7 +68,7 @@ export default function ServerListPage() {
     );
   }
 
-  if (error) {
+  if (paginated.error && !paginated.data) {
     return (
       <div>
         <Header title="Servers" />
@@ -102,9 +116,7 @@ export default function ServerListPage() {
     {
       key: 'status',
       header: 'Status',
-      render: (server: ServerType) => (
-        <StatusIndicator status={server.status} />
-      ),
+      render: (server: ServerType) => <StatusIndicator status={server.status} />,
     },
     {
       key: 'web_apps_count',
@@ -165,6 +177,9 @@ export default function ServerListPage() {
     },
   ];
 
+  // Suppress unused variable warning — allServers is used by child components via the query cache
+  void allServers;
+
   return (
     <div>
       <Header
@@ -178,16 +193,35 @@ export default function ServerListPage() {
         }
       />
 
-      {!servers || servers.length === 0 ? (
+      {/* Search bar */}
+      <Card className="mb-6">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Search by name or IP..."
+            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+      </Card>
+
+      {servers.length === 0 ? (
         <Card>
           <EmptyState
             icon={<Server className="w-12 h-12" />}
-            title="No servers yet"
-            description="Add your first server to get started managing your infrastructure."
-            action={{
-              label: 'Add Server',
-              onClick: () => navigate('/servers/add'),
-            }}
+            title={search ? 'No servers found' : 'No servers yet'}
+            description={
+              search
+                ? `No servers match "${search}". Try a different search.`
+                : 'Add your first server to get started managing your infrastructure.'
+            }
+            action={
+              !search
+                ? { label: 'Add Server', onClick: () => navigate('/servers/add') }
+                : undefined
+            }
           />
         </Card>
       ) : (
@@ -197,6 +231,17 @@ export default function ServerListPage() {
             data={servers}
             keyExtractor={(s) => s.id}
           />
+          {meta && (
+            <Pagination
+              currentPage={meta.current_page}
+              lastPage={meta.last_page}
+              total={meta.total}
+              perPage={meta.per_page}
+              from={meta.from}
+              to={meta.to}
+              onPageChange={setPage}
+            />
+          )}
         </Card>
       )}
 

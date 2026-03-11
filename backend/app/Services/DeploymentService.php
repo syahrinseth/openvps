@@ -2,11 +2,15 @@
 
 namespace App\Services;
 
+use App\Events\DeploymentUpdated;
+use App\Mail\DeploymentMail;
 use App\Models\Deployment;
+use App\Models\User;
 use App\Models\WebApp;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class DeploymentService
 {
@@ -31,11 +35,14 @@ class DeploymentService
             'started_at' => now(),
         ]);
 
+        // Notify: deployment started
+        broadcast(new DeploymentUpdated($deployment))->toOthers();
+
         try {
             $deployment->update(['status' => 'in_progress']);
+            broadcast(new DeploymentUpdated($deployment->fresh()))->toOthers();
 
             $deployPath = $webApp->root_directory;
-            $repoUrl = $webApp->repository_url;
             $branch = $webApp->repository_branch ?? 'main';
             $output = '';
 
@@ -65,6 +72,12 @@ class DeploymentService
             ]);
 
             $webApp->update(['status' => 'active']);
+
+            $freshDeployment = $deployment->fresh();
+            broadcast(new DeploymentUpdated($freshDeployment))->toOthers();
+
+            // Send success email to the triggering user
+            $this->sendDeploymentEmail($freshDeployment, 'success');
         } catch (Exception $e) {
             Log::error("Deployment failed for web app [{$webApp->name}]", [
                 'error' => $e->getMessage(),
@@ -75,6 +88,12 @@ class DeploymentService
                 'error_output' => $e->getMessage(),
                 'completed_at' => now(),
             ]);
+
+            $freshDeployment = $deployment->fresh();
+            broadcast(new DeploymentUpdated($freshDeployment))->toOthers();
+
+            // Send failure email
+            $this->sendDeploymentEmail($freshDeployment, 'failed');
 
             throw $e;
         }
@@ -105,6 +124,8 @@ class DeploymentService
             'started_at' => now(),
         ]);
 
+        broadcast(new DeploymentUpdated($rollbackDeployment))->toOthers();
+
         try {
             $deployPath = $webApp->root_directory;
             $output = $this->connection->execute(
@@ -125,12 +146,22 @@ class DeploymentService
             ]);
 
             $deployment->update(['rolled_back_at' => now()]);
+
+            $freshRollback = $rollbackDeployment->fresh();
+            broadcast(new DeploymentUpdated($freshRollback))->toOthers();
+
+            $this->sendDeploymentEmail($freshRollback, 'success');
         } catch (Exception $e) {
             $rollbackDeployment->update([
                 'status' => 'failed',
                 'error_output' => $e->getMessage(),
                 'completed_at' => now(),
             ]);
+
+            $freshRollback = $rollbackDeployment->fresh();
+            broadcast(new DeploymentUpdated($freshRollback))->toOthers();
+
+            $this->sendDeploymentEmail($freshRollback, 'failed');
 
             throw $e;
         }
@@ -154,5 +185,26 @@ class DeploymentService
         }
 
         return $log;
+    }
+
+    /**
+     * Send a deployment status email to the user who triggered the deployment.
+     */
+    protected function sendDeploymentEmail(Deployment $deployment, string $status): void
+    {
+        try {
+            if (!$deployment->user_id) {
+                return;
+            }
+
+            $user = User::find($deployment->user_id);
+            if (!$user) {
+                return;
+            }
+
+            Mail::to($user->email)->queue(new DeploymentMail($deployment, $status));
+        } catch (Exception $e) {
+            Log::warning('Failed to send deployment email', ['error' => $e->getMessage()]);
+        }
     }
 }

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import type { WebApp, WebAppFormData, ApiResponse } from '@/types';
+import type { WebApp, WebAppFormData, ApiResponse, PaginatedResponse } from '@/types';
 import toast from 'react-hot-toast';
 
 export function useWebApps(serverId: number) {
@@ -9,6 +9,22 @@ export function useWebApps(serverId: number) {
     queryFn: async () => {
       const { data } = await api.get<ApiResponse<WebApp[]>>(`/servers/${serverId}/web-apps`);
       return data.data;
+    },
+    enabled: !!serverId,
+  });
+}
+
+/**
+ * Paginated web app list with optional search query.
+ */
+export function useWebAppsPaginated(serverId: number, page: number = 1, search: string = '') {
+  return useQuery({
+    queryKey: ['servers', serverId, 'web-apps', 'paginated', page, search],
+    queryFn: async () => {
+      const params: Record<string, string | number> = { page };
+      if (search) params.search = search;
+      const { data } = await api.get<PaginatedResponse<WebApp>>(`/servers/${serverId}/web-apps`, { params });
+      return data;
     },
     enabled: !!serverId,
   });

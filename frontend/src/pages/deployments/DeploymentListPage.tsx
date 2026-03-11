@@ -10,10 +10,11 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  Radio,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useServers } from '@/hooks/useServers';
-import { useWebApps } from '@/hooks/useWebApps';
+import { useWebApps, useDeployWebApp } from '@/hooks/useWebApps';
 import { useAllDeployments, useDeployments, useRollbackDeployment } from '@/hooks/useDeployments';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
@@ -22,6 +23,7 @@ import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import EmptyState from '@/components/ui/EmptyState';
+import LiveDeploymentLog from '@/components/deployments/LiveDeploymentLog';
 import type { Deployment } from '@/types';
 
 function formatDuration(startedAt: string | null, completedAt: string | null): string {
@@ -86,10 +88,20 @@ const statusConfig: Record<
   },
 };
 
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All Statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'success', label: 'Success' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'rolled_back', label: 'Rolled Back' },
+];
+
 export default function DeploymentListPage() {
   const { data: servers } = useServers();
   const [selectedServerId, setSelectedServerId] = useState<number>(0);
   const [selectedWebAppId, setSelectedWebAppId] = useState<number>(0);
+  const [statusFilter, setStatusFilter] = useState<string>('');
 
   const { data: webApps } = useWebApps(selectedServerId);
   const { data: allDeployments, isLoading: isLoadingAll, error: allError } = useAllDeployments(selectedServerId);
@@ -97,17 +109,21 @@ export default function DeploymentListPage() {
     selectedServerId,
     selectedWebAppId
   );
-  const rollbackDeployment = useRollbackDeployment(
-    selectedServerId,
-    selectedWebAppId || 0
-  );
+  const rollbackDeployment = useRollbackDeployment(selectedServerId, selectedWebAppId || 0);
+  const deployWebApp = useDeployWebApp(selectedServerId);
 
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<Deployment | null>(null);
+  const [liveDeployment, setLiveDeployment] = useState<Deployment | null>(null);
 
-  const deployments = selectedWebAppId ? filteredDeployments : allDeployments;
+  const rawDeployments = selectedWebAppId ? filteredDeployments : allDeployments;
   const isLoading = selectedWebAppId ? isLoadingFiltered : isLoadingAll;
   const error = selectedWebAppId ? filteredError : allError;
+
+  // Apply client-side status filter
+  const deployments = statusFilter
+    ? (rawDeployments ?? []).filter((d) => d.status === statusFilter)
+    : rawDeployments;
 
   const serverOptions = (servers || []).map((s) => ({
     value: String(s.id),
@@ -127,10 +143,25 @@ export default function DeploymentListPage() {
   const handleRollback = async () => {
     if (!rollbackTarget) return;
     try {
-      await rollbackDeployment.mutateAsync(rollbackTarget.id);
+      const newDeployment = await rollbackDeployment.mutateAsync(rollbackTarget.id);
       setRollbackTarget(null);
+      // Open live log for the new rollback deployment
+      if (newDeployment) {
+        setLiveDeployment(newDeployment as Deployment);
+      }
     } catch {
       toast.error('Failed to initiate rollback');
+    }
+  };
+
+  const handleDeploy = async (webAppId: number) => {
+    try {
+      const newDeployment = await deployWebApp.mutateAsync(webAppId);
+      if (newDeployment) {
+        setLiveDeployment(newDeployment as Deployment);
+      }
+    } catch {
+      // error toast already shown by hook
     }
   };
 
@@ -157,19 +188,31 @@ export default function DeploymentListPage() {
               onChange={(e) => {
                 setSelectedServerId(Number(e.target.value));
                 setSelectedWebAppId(0);
+                setStatusFilter('');
               }}
             />
           </div>
           {selectedServerId > 0 && (
-            <div className="max-w-sm flex-1">
-              <Select
-                id="webapp-filter"
-                label="Filter by Web App"
-                options={webAppOptions}
-                value={String(selectedWebAppId)}
-                onChange={(e) => setSelectedWebAppId(Number(e.target.value))}
-              />
-            </div>
+            <>
+              <div className="max-w-sm flex-1">
+                <Select
+                  id="webapp-filter"
+                  label="Filter by Web App"
+                  options={webAppOptions}
+                  value={String(selectedWebAppId)}
+                  onChange={(e) => setSelectedWebAppId(Number(e.target.value))}
+                />
+              </div>
+              <div className="max-w-sm flex-1">
+                <Select
+                  id="status-filter"
+                  label="Filter by Status"
+                  options={STATUS_FILTER_OPTIONS}
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                />
+              </div>
+            </>
           )}
         </div>
       </Card>
@@ -201,9 +244,11 @@ export default function DeploymentListPage() {
             icon={<Rocket className="w-12 h-12" />}
             title="No deployments"
             description={
-              selectedWebAppId
-                ? 'No deployments found for this web app.'
-                : 'No deployments found on this server yet.'
+              statusFilter
+                ? `No ${statusFilter.replace('_', ' ')} deployments found.`
+                : selectedWebAppId
+                  ? 'No deployments found for this web app.'
+                  : 'No deployments found on this server yet.'
             }
           />
         </Card>
@@ -308,24 +353,44 @@ export default function DeploymentListPage() {
                               {formatDuration(deployment.started_at, null)}
                             </span>
                           ) : (
-                            formatDuration(
-                              deployment.started_at,
-                              deployment.completed_at
-                            )
+                            formatDuration(deployment.started_at, deployment.completed_at)
                           )}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
-                        {deployment.status === 'success' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setRollbackTarget(deployment)}
-                          >
-                            <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                            Rollback
-                          </Button>
-                        )}
+                        <div className="flex items-center justify-end gap-1">
+                          {(deployment.status === 'in_progress' || deployment.status === 'pending') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setLiveDeployment(deployment)}
+                              title="Watch live log"
+                            >
+                              <Radio className="w-3.5 h-3.5 text-blue-500" />
+                            </Button>
+                          )}
+                          {deployment.status === 'success' && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeploy(deployment.web_app_id)}
+                                isLoading={deployWebApp.isPending}
+                                title="Re-deploy"
+                              >
+                                <Rocket className="w-3.5 h-3.5 text-gray-500" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setRollbackTarget(deployment)}
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                                Rollback
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -334,7 +399,7 @@ export default function DeploymentListPage() {
             </table>
           </div>
 
-          {/* Expanded deployment logs are rendered outside the table for better layout */}
+          {/* Expanded static log */}
           {expandedRow &&
             deployments
               .filter((d) => d.id === expandedRow)
@@ -347,9 +412,16 @@ export default function DeploymentListPage() {
                     <span className="text-xs font-medium text-gray-500 uppercase">
                       Deployment Log
                     </span>
-                    <span className="text-xs text-gray-400">
-                      #{deployment.id}
-                    </span>
+                    <span className="text-xs text-gray-400">#{deployment.id}</span>
+                    {(deployment.status === 'pending' || deployment.status === 'in_progress') && (
+                      <button
+                        onClick={() => setLiveDeployment(deployment)}
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <Radio className="w-3 h-3" />
+                        Watch Live
+                      </button>
+                    )}
                   </div>
                   <div className="bg-gray-900 rounded-lg p-4 max-h-80 overflow-y-auto">
                     <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap break-words">
@@ -376,25 +448,19 @@ export default function DeploymentListPage() {
           {rollbackTarget && (
             <div className="bg-gray-50 rounded-lg p-3 space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">
-                  Commit:
-                </span>
+                <span className="text-xs font-medium text-gray-500">Commit:</span>
                 <code className="text-xs font-mono bg-gray-200 px-1.5 py-0.5 rounded">
                   {rollbackTarget.commit_hash?.substring(0, 7) || '---'}
                 </code>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">
-                  Message:
-                </span>
+                <span className="text-xs font-medium text-gray-500">Message:</span>
                 <span className="text-xs text-gray-700">
                   {rollbackTarget.commit_message || '---'}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">
-                  Deployed:
-                </span>
+                <span className="text-xs font-medium text-gray-500">Deployed:</span>
                 <span className="text-xs text-gray-700">
                   {formatDate(rollbackTarget.started_at)}
                 </span>
@@ -402,10 +468,7 @@ export default function DeploymentListPage() {
             </div>
           )}
           <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => setRollbackTarget(null)}
-            >
+            <Button variant="secondary" onClick={() => setRollbackTarget(null)}>
               Cancel
             </Button>
             <Button
@@ -419,6 +482,13 @@ export default function DeploymentListPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Live deployment log overlay */}
+      <LiveDeploymentLog
+        serverId={selectedServerId}
+        deployment={liveDeployment}
+        onClose={() => setLiveDeployment(null)}
+      />
     </div>
   );
 }

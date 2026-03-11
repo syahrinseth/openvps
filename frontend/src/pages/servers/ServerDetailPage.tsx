@@ -8,6 +8,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  LineChart,
+  Line,
+  Legend,
 } from 'recharts';
 import {
   Server,
@@ -21,6 +24,7 @@ import {
   Wifi,
   ArrowLeft,
   BarChart3,
+  Network,
 } from 'lucide-react';
 import { useServer, useServerMetrics, useTestConnection } from '@/hooks/useServers';
 import Header from '@/components/layout/Header';
@@ -50,6 +54,11 @@ function formatDate(dateStr: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatBytes(mb: number): string {
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
+  return `${mb.toFixed(0)} MB`;
 }
 
 export default function ServerDetailPage() {
@@ -96,6 +105,8 @@ export default function ServerDetailPage() {
     cpu: m.cpu_usage,
     memory: m.memory_total > 0 ? Math.round((m.memory_usage / m.memory_total) * 100) : 0,
     disk: m.disk_total > 0 ? Math.round((m.disk_usage / m.disk_total) * 100) : 0,
+    network_in: m.network_in,
+    network_out: m.network_out,
   }));
 
   const latestMetric = metrics && metrics.length > 0 ? metrics[metrics.length - 1] : null;
@@ -140,9 +151,7 @@ export default function ServerDetailPage() {
         <Card>
           <p className="text-xs text-gray-500 uppercase font-medium mb-1">OS</p>
           <p className="text-sm font-medium text-gray-900">
-            {server.os_type
-              ? `${server.os_type} ${server.os_version || ''}`
-              : 'Unknown'}
+            {server.os_type ? `${server.os_type} ${server.os_version || ''}` : 'Unknown'}
           </p>
         </Card>
         <Card>
@@ -173,10 +182,10 @@ export default function ServerDetailPage() {
         </nav>
       </div>
 
-      {/* Tab Content */}
+      {/* ── OVERVIEW TAB ── */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Resource Usage Charts */}
+          {/* Resource Usage Cards */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {latestMetric ? (
               <>
@@ -231,7 +240,7 @@ export default function ServerDetailPage() {
           {/* Resource Charts */}
           {metricsData.length > 0 && (
             <Card>
-              <CardHeader title="Resource History" description="CPU and Memory usage over time" />
+              <CardHeader title="Resource History" description="CPU, Memory, and Disk usage over time" />
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={metricsData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -244,39 +253,12 @@ export default function ServerDetailPage() {
                   />
                   <Tooltip
                     formatter={(value) => [`${value}%`]}
-                    contentStyle={{
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                      fontSize: '12px',
-                    }}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="cpu"
-                    name="CPU"
-                    stroke="#3b82f6"
-                    fill="#3b82f6"
-                    fillOpacity={0.1}
-                    strokeWidth={2}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="memory"
-                    name="Memory"
-                    stroke="#8b5cf6"
-                    fill="#8b5cf6"
-                    fillOpacity={0.1}
-                    strokeWidth={2}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="disk"
-                    name="Disk"
-                    stroke="#f59e0b"
-                    fill="#f59e0b"
-                    fillOpacity={0.1}
-                    strokeWidth={2}
-                  />
+                  <Legend />
+                  <Area type="monotone" dataKey="cpu" name="CPU" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} strokeWidth={2} />
+                  <Area type="monotone" dataKey="memory" name="Memory" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.1} strokeWidth={2} />
+                  <Area type="monotone" dataKey="disk" name="Disk" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.1} strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             </Card>
@@ -321,7 +303,159 @@ export default function ServerDetailPage() {
         </div>
       )}
 
-      {activeTab !== 'overview' && (
+      {/* ── METRICS TAB ── */}
+      {activeTab === 'metrics' && (
+        <div className="space-y-6">
+          {/* Latest snapshot summary */}
+          {latestMetric ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              {[
+                { label: 'CPU', value: `${latestMetric.cpu_usage}%`, color: 'text-blue-600' },
+                {
+                  label: 'Memory',
+                  value: latestMetric.memory_total > 0
+                    ? `${Math.round((latestMetric.memory_usage / latestMetric.memory_total) * 100)}%`
+                    : '0%',
+                  color: 'text-purple-600',
+                },
+                {
+                  label: 'Disk',
+                  value: latestMetric.disk_total > 0
+                    ? `${Math.round((latestMetric.disk_usage / latestMetric.disk_total) * 100)}%`
+                    : '0%',
+                  color: 'text-orange-600',
+                },
+                { label: 'Load (1m)', value: String(latestMetric.load_average_1), color: 'text-gray-700' },
+                { label: 'Net In', value: formatBytes(latestMetric.network_in), color: 'text-green-600' },
+                { label: 'Net Out', value: formatBytes(latestMetric.network_out), color: 'text-red-500' },
+              ].map(({ label, value, color }) => (
+                <Card key={label}>
+                  <p className="text-xs text-gray-500 uppercase font-medium mb-1">{label}</p>
+                  <p className={`text-xl font-bold ${color}`}>{value}</p>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <div className="text-center py-8 text-gray-400">
+                <Activity className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-sm">No metrics collected yet. The scheduler collects metrics every minute.</p>
+              </div>
+            </Card>
+          )}
+
+          {/* CPU + Memory chart */}
+          {metricsData.length > 0 && (
+            <Card>
+              <CardHeader title="CPU & Memory" description="Percentage over time" />
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={metricsData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="time" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    formatter={(value) => [`${value}%`]}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
+                  />
+                  <Legend />
+                  <Area type="monotone" dataKey="cpu" name="CPU" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.15} strokeWidth={2} />
+                  <Area type="monotone" dataKey="memory" name="Memory" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+
+          {/* Disk usage chart */}
+          {metricsData.length > 0 && (
+            <Card>
+              <CardHeader title="Disk Usage" description="Percentage over time" />
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={metricsData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="time" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    formatter={(value) => [`${value}%`]}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
+                  />
+                  <Area type="monotone" dataKey="disk" name="Disk" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+
+          {/* Network I/O chart */}
+          {metricsData.length > 0 && (
+            <Card>
+              <CardHeader
+                title="Network I/O"
+                description="Inbound and outbound traffic (MB)"
+              />
+              <div className="flex items-center gap-2 mb-3">
+                <Network className="w-4 h-4 text-gray-400" />
+                <span className="text-xs text-gray-500">Values in megabytes per sample interval</span>
+              </div>
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={metricsData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="time" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    stroke="#9ca3af"
+                    tickFormatter={(v) => `${v} MB`}
+                    width={60}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [`${value.toFixed(2)} MB`]}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="network_in"
+                    name="In"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="network_out"
+                    name="Out"
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+
+          {/* Load average table */}
+          {latestMetric && (
+            <Card>
+              <CardHeader title="Load Averages" description="Current server load" />
+              <div className="grid grid-cols-3 gap-6 text-center">
+                {[
+                  { label: '1 minute', value: latestMetric.load_average_1 },
+                  { label: '5 minutes', value: latestMetric.load_average_5 },
+                  { label: '15 minutes', value: latestMetric.load_average_15 },
+                ].map(({ label, value }) => (
+                  <div key={label}>
+                    <p className="text-2xl font-bold text-gray-800">{value}</p>
+                    <p className="text-xs text-gray-500 mt-1">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── Other placeholder tabs ── */}
+      {activeTab !== 'overview' && activeTab !== 'metrics' && (
         <Card>
           <div className="text-center py-12">
             <Server className="w-12 h-12 text-gray-300 mx-auto mb-3" />

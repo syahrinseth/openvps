@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import api from '@/lib/api';
+import { destroyEcho } from '@/lib/echo';
 import type { User } from '@/types';
 
 interface AuthContextType {
@@ -62,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post('/auth/logout');
     } finally {
+      destroyEcho();
       localStorage.removeItem('auth_token');
       setToken(null);
       setUser(null);

@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "laravel-echo": "^1.17.1",
+    "pusher-js": "^8.4.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
