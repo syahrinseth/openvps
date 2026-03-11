@@ -1,0 +1,135 @@
+services:
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: openvps-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./backend/public:/var/www/html/public
+      - ./frontend/dist:/var/www/html/frontend
+      - ./docker/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - backend
+    networks:
+      - openvps-network
+    restart: unless-stopped
+
+  # Laravel Backend (PHP-FPM)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    container_name: openvps-backend
+    volumes:
+      - ./backend:/var/www/html
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=mysql
+      - REDIS_HOST=redis
+      - QUEUE_CONNECTION=redis
+      - CACHE_STORE=redis
+      - SESSION_DRIVER=redis
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - openvps-network
+    restart: unless-stopped
+
+  # Queue Worker
+  queue:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    container_name: openvps-queue
+    command: php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+    volumes:
+      - ./backend:/var/www/html
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=mysql
+      - REDIS_HOST=redis
+      - QUEUE_CONNECTION=redis
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - openvps-network
+    restart: unless-stopped
+
+  # Laravel Scheduler
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    container_name: openvps-scheduler
+    command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction & sleep 60; done"
+    volumes:
+      - ./backend:/var/www/html
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=mysql
+      - REDIS_HOST=redis
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - openvps-network
+    restart: unless-stopped
+
+  # MySQL 8.0
+  mysql:
+    image: mysql:8.0
+    container_name: openvps-mysql
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_DATABASE:-openvps}
+      - MYSQL_USER=${DB_USERNAME:-openvps}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf
+    networks:
+      - openvps-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:alpine
+    container_name: openvps-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - openvps-network
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  redis-data:
+
+networks:
+  openvps-network:
+    driver: bridge

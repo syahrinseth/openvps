@@ -1,0 +1,35 @@
+# Environment files
+.env
+!.env.example
+backend/.env
+!backend/.env.example
+
+# Docker volumes
+docker/nginx/ssl/*.pem
+docker/nginx/ssl/*.key
+docker/nginx/ssl/*.crt
+
+# Credentials
+CREDENTIALS.txt
+
+# Backups (stored on server, not in repo)
+backups/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node
+node_modules/
+
+# PHP
+vendor/
+
+# Build output
+frontend/dist/
