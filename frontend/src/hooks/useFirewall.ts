@@ -31,7 +31,7 @@ export function useCreateFirewallRule(serverId: number) {
 export function useUpdateFirewallRule(serverId: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...ruleData }: { id: number; rule_type?: string; direction?: string; protocol?: string; port?: string; from_ip?: string; to_ip?: string; description?: string }) => {
+    mutationFn: async ({ id, ...ruleData }: { id: number; rule_type?: string; direction?: string; protocol?: string; port?: string; from_ip?: string; to_ip?: string; description?: string; is_active?: boolean }) => {
       const { data } = await api.put(`/servers/${serverId}/firewall-rules/${id}`, ruleData);
       return data.data;
     },

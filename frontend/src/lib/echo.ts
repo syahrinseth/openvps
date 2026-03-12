@@ -16,7 +16,7 @@ import Pusher from 'pusher-js';
  *   VITE_REVERB_PORT     – WebSocket port (443 in production behind Nginx)
  *   VITE_REVERB_SCHEME   – "https" or "http"
  */
-function createEcho(): Echo<'pusher'> {
+function createEcho(): Echo<'reverb'> {
   const appKey   = import.meta.env.VITE_REVERB_APP_KEY   ?? 'openvps-key';
   const rawHost  = import.meta.env.VITE_REVERB_HOST      ?? window.location.origin;
   const port     = Number(import.meta.env.VITE_REVERB_PORT ?? 443);
@@ -54,9 +54,9 @@ function createEcho(): Echo<'pusher'> {
 }
 
 // Singleton — lazily initialized so auth token is available at connection time
-let _echo: Echo<'pusher'> | null = null;
+let _echo: Echo<'reverb'> | null = null;
 
-export function getEcho(): Echo<'pusher'> {
+export function getEcho(): Echo<'reverb'> {
   if (!_echo) {
     _echo = createEcho();
   }

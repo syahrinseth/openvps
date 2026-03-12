@@ -42,7 +42,7 @@ export function useCreateNginxConfig(serverId: number) {
 export function useUpdateNginxConfig(serverId: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...configData }: { id: number; domain?: string; web_app_id?: number; upstream_port?: number; config_content?: string }) => {
+    mutationFn: async ({ id, ...configData }: { id: number; domain?: string; web_app_id?: number; upstream_port?: number; config_content?: string; is_active?: boolean }) => {
       const { data } = await api.put(`/servers/${serverId}/nginx/${id}`, configData);
       return data.data;
     },

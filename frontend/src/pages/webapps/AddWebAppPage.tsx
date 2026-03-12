@@ -14,7 +14,7 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 
 const webAppSchema = z.object({
-  server_id: z.coerce.number().min(1, 'Server is required'),
+  server_id: z.number().min(1, 'Server is required'),
   name: z.string().min(1, 'App name is required'),
   domain: z.string().min(1, 'Domain is required'),
   app_type: z.enum(['laravel', 'nodejs', 'react', 'static', 'custom']),
@@ -22,7 +22,7 @@ const webAppSchema = z.object({
   git_branch: z.string().optional(),
   deploy_path: z.string().min(1, 'Deploy path is required'),
   docker_compose_path: z.string().optional(),
-  port: z.coerce.number().min(1).max(65535).optional(),
+  port: z.number().min(1).max(65535).optional(),
   docker_container_name: z.string().optional(),
   auto_deploy: z.boolean(),
 });
@@ -53,7 +53,7 @@ export default function AddWebAppPage() {
   const form = useForm<WebAppFormValues>({
     resolver: zodResolver(webAppSchema),
     defaultValues: {
-      server_id: preselectedServerId || (undefined as unknown as number),
+      server_id: preselectedServerId || 0,
       app_type: 'laravel',
       git_branch: 'main',
       deploy_path: '/var/www/',
@@ -97,7 +97,7 @@ export default function AddWebAppPage() {
             label="Server"
             options={serverOptions}
             value={String(form.watch('server_id') ?? '')}
-            onChange={(e) => form.setValue('server_id', Number(e.target.value))}
+            onChange={(e) => form.setValue('server_id', e.target.value ? Number(e.target.value) : 0)}
             error={form.formState.errors.server_id?.message}
           />
 

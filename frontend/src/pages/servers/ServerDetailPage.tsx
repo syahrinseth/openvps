@@ -406,7 +406,7 @@ export default function ServerDetailPage() {
                     width={60}
                   />
                   <Tooltip
-                    formatter={(value: number) => [`${value.toFixed(2)} MB`]}
+                    formatter={(value?: any) => [value ? `${(value as number).toFixed(2)} MB` : '–']}
                     contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
                   />
                   <Legend />

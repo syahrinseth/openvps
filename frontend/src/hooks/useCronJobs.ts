@@ -31,7 +31,7 @@ export function useCreateCronJob(serverId: number) {
 export function useUpdateCronJob(serverId: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...cronData }: { id: number; command?: string; schedule?: string; description?: string; web_app_id?: number }) => {
+    mutationFn: async ({ id, ...cronData }: { id: number; command?: string; schedule?: string; description?: string; web_app_id?: number; is_active?: boolean }) => {
       const { data } = await api.put(`/servers/${serverId}/cron-jobs/${id}`, cronData);
       return data.data;
     },

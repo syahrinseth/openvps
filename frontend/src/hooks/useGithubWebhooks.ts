@@ -31,7 +31,7 @@ export function useCreateGithubWebhook(serverId: number) {
 export function useUpdateGithubWebhook(serverId: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...webhookData }: { id: number; repository?: string; branch?: string; events?: string[] }) => {
+    mutationFn: async ({ id, ...webhookData }: { id: number; repository?: string; branch?: string; events?: string[]; is_active?: boolean }) => {
       const { data } = await api.put(`/servers/${serverId}/github-webhooks/${id}`, webhookData);
       return data.data;
     },

@@ -5,7 +5,6 @@ import {
   RefreshCw,
   Trash2,
   Server,
-  CalendarDays,
 } from 'lucide-react';
 import { useServers } from '@/hooks/useServers';
 import {

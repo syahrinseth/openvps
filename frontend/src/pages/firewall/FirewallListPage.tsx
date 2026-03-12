@@ -19,7 +19,7 @@ import {
   useSyncFirewall,
 } from '@/hooks/useFirewall';
 import Header from '@/components/layout/Header';
-import Card, { CardHeader } from '@/components/ui/Card';
+import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Table from '@/components/ui/Table';
 import Badge from '@/components/ui/Badge';

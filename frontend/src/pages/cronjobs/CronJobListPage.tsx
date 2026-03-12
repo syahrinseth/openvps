@@ -4,9 +4,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Play,
-  Pause,
-  Terminal,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useServers } from '@/hooks/useServers';
