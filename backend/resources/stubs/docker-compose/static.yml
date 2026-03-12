@@ -1,0 +1,15 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: {{APP_NAME}}-nginx
+    ports:
+      - "{{PORT}}:80"
+    volumes:
+      - .:/usr/share/nginx/html:ro
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge

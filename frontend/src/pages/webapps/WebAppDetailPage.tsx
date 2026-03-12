@@ -12,7 +12,7 @@ import {
   Terminal,
   Settings,
 } from 'lucide-react';
-import { useWebApp, useDeployWebApp, useStartWebApp, useStopWebApp, useRestartWebApp } from '@/hooks/useWebApps';
+import { useWebApp, useDeployWebApp, useStartWebApp, useStopWebApp, useRestartWebApp, useSetupWebApp } from '@/hooks/useWebApps';
 import Header from '@/components/layout/Header';
 import Card, { CardHeader } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -57,6 +57,7 @@ export default function WebAppDetailPage() {
   const start = useStartWebApp(serverIdNum);
   const stop = useStopWebApp(serverIdNum);
   const restart = useRestartWebApp(serverIdNum);
+  const setup = useSetupWebApp(serverIdNum);
 
   if (isLoading) {
     return (
@@ -101,6 +102,14 @@ export default function WebAppDetailPage() {
         description={app.domain}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setup.mutate(app.id)}
+              isLoading={setup.isPending}
+            >
+              <Settings className="w-4 h-4 mr-1" />
+              Initialize Setup
+            </Button>
             <Button
               variant="outline"
               onClick={() => deploy.mutate(app.id)}

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Globe, Plus, Rocket, Trash2, Search } from 'lucide-react';
+import { Globe, Plus, Rocket, Trash2, Search, Settings } from 'lucide-react';
 import { useServers } from '@/hooks/useServers';
-import { useWebApps, useWebAppsPaginated, useDeployWebApp, useDeleteWebApp } from '@/hooks/useWebApps';
+import { useWebApps, useWebAppsPaginated, useDeployWebApp, useDeleteWebApp, useSetupWebApp } from '@/hooks/useWebApps';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -38,6 +38,7 @@ export default function WebAppListPage() {
 
   const deployWebApp = useDeployWebApp(selectedServerId);
   const deleteWebApp = useDeleteWebApp(selectedServerId);
+  const setupWebApp = useSetupWebApp(selectedServerId);
 
   const serverOptions = (servers || []).map((s) => ({
     value: String(s.id),
@@ -179,6 +180,17 @@ export default function WebAppListPage() {
                 </div>
 
                 <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setupWebApp.mutate(app.id)}
+                    isLoading={setupWebApp.isPending}
+                    className="flex-1"
+                    title="Initialize setup: clone repo and generate docker-compose.yml"
+                  >
+                    <Settings className="w-3.5 h-3.5 mr-1" />
+                    Setup
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"

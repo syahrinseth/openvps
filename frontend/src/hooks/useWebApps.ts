@@ -137,3 +137,20 @@ export function useStopWebApp(serverId: number) {
     },
   });
 }
+
+export function useSetupWebApp(serverId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (appId: number) => {
+      const { data } = await api.post(`/servers/${serverId}/web-apps/${appId}/setup`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servers', serverId, 'web-apps'] });
+      toast.success('Web app setup completed successfully');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || err?.response?.data?.message || 'Setup failed');
+    },
+  });
+}

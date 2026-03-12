@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Web Apps
         Route::apiResource('web-apps', WebAppController::class);
         Route::post('/web-apps/{web_app}/deploy', [WebAppController::class, 'deploy']);
+        Route::post('/web-apps/{web_app}/setup', [WebAppController::class, 'setup']);
         Route::post('/web-apps/{web_app}/start', [WebAppController::class, 'start']);
         Route::post('/web-apps/{web_app}/stop', [WebAppController::class, 'stop']);
         Route::post('/web-apps/{web_app}/restart', [WebAppController::class, 'restart']);

@@ -176,7 +176,7 @@ class GithubWebhookController extends Controller
             $payload = $request->all();
             $branch = str_replace('refs/heads/', '', $payload['ref'] ?? '');
 
-            if ($branch === ($webApp->repository_branch ?? 'main') && $webApp->auto_deploy) {
+            if ($branch === ($webApp->git_branch ?? 'main') && $webApp->auto_deploy) {
                 try {
                     $commitHash = $payload['after'] ?? null;
                     $this->deploymentService->deploy($webApp, $commitHash);

@@ -12,6 +12,7 @@ use App\Models\WebApp;
 use App\Services\ActivityLogService;
 use App\Services\DeploymentService;
 use App\Services\ServerConnectionService;
+use App\Services\WebAppSetupService;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class WebAppController extends Controller
         protected DeploymentService $deploymentService,
         protected ServerConnectionService $connectionService,
         protected ActivityLogService $activityLog,
+        protected WebAppSetupService $setupService,
     ) {}
 
     /**
@@ -266,6 +268,44 @@ class WebAppController extends Controller
             return response()->json([
                 'message' => 'Failed to restart web app.',
                 'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Initialize setup for a web app:
+     *  - Clone the git repository to deploy_path
+     *  - Generate docker-compose.yml if not present
+     */
+    public function setup(Request $request, Server $server, WebApp $webApp): JsonResponse
+    {
+        $this->authorizeServerAccess($server);
+        $this->authorizeWebAppBelongsToServer($webApp, $server);
+
+        $webApp->update(['status' => 'deploying']);
+
+        try {
+            $result = $this->setupService->setup($webApp);
+
+            $this->activityLog->log(
+                'webapp.setup',
+                "Web app '{$webApp->name}' was initialized on server '{$server->name}'",
+                $request->user(),
+                $server,
+                $webApp,
+            );
+
+            return response()->json([
+                'message' => 'Web app setup completed successfully.',
+                'log'     => $result['log'],
+                'data'    => new WebAppResource($webApp->fresh()),
+            ]);
+        } catch (Exception $e) {
+            $webApp->update(['status' => 'failed']);
+
+            return response()->json([
+                'message' => 'Web app setup failed.',
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }

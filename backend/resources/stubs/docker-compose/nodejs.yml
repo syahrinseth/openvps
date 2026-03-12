@@ -1,0 +1,20 @@
+services:
+  app:
+    image: node:20-alpine
+    container_name: {{APP_NAME}}-app
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "npm install && npm start"
+    ports:
+      - "{{PORT}}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge

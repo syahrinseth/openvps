@@ -1,0 +1,25 @@
+services:
+  app:
+    image: node:20-alpine
+    container_name: {{APP_NAME}}-build
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "npm install && npm run build"
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: {{APP_NAME}}-nginx
+    ports:
+      - "{{PORT}}:80"
+    volumes:
+      - ./dist:/usr/share/nginx/html:ro
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
