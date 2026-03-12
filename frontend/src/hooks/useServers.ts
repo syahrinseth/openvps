@@ -84,16 +84,24 @@ export function useDeleteServer() {
 }
 
 export function useTestConnection() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
       const { data } = await api.post(`/servers/${id}/test-connection`);
       return data;
     },
-    onSuccess: () => {
-      toast.success('Connection successful!');
+    onSuccess: (data, id) => {
+      if (data.connected) {
+        queryClient.invalidateQueries({ queryKey: ['servers', id] });
+        queryClient.invalidateQueries({ queryKey: ['servers'] });
+        toast.success('Connection successful!');
+      } else {
+        toast.error(data.message || 'Connection failed.');
+      }
     },
-    onError: () => {
-      toast.error('Connection failed');
+    onError: (err: any) => {
+      const message = err?.response?.data?.message || 'Connection failed.';
+      toast.error(message);
     },
   });
 }

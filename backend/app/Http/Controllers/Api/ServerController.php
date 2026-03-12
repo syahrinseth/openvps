@@ -9,8 +9,10 @@ use App\Http\Resources\ServerResource;
 use App\Models\Server;
 use App\Services\ActivityLogService;
 use App\Services\ServerConnectionService;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ServerController extends Controller
 {
@@ -157,14 +159,30 @@ class ServerController extends Controller
     {
         $this->authorizeServerAccess($server);
 
-        $connected = $this->connectionService->testConnection($server);
+        try {
+            $connected = $this->connectionService->testConnection($server);
 
-        $server->update(['status' => $connected ? 'active' : 'unreachable']);
+            $server->update(['status' => $connected ? 'active' : 'unreachable']);
 
-        return response()->json([
-            'connected' => $connected,
-            'message' => $connected ? 'Connection successful.' : 'Connection failed.',
-        ]);
+            return response()->json([
+                'connected' => $connected,
+                'message'   => $connected ? 'Connection successful.' : 'Connection failed.',
+            ]);
+        } catch (Exception $e) {
+            Log::error("Test connection failed for server [{$server->name}] ({$server->ip_address}): {$e->getMessage()}", [
+                'server_id'  => $server->id,
+                'ip_address' => $server->ip_address,
+                'ssh_user'   => $server->ssh_user,
+                'exception'  => $e->getMessage(),
+            ]);
+
+            $server->update(['status' => 'unreachable']);
+
+            return response()->json([
+                'connected' => false,
+                'message'   => 'Connection failed: ' . $e->getMessage(),
+            ]);
+        }
     }
 
     /**

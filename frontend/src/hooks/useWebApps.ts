@@ -145,12 +145,17 @@ export function useSetupWebApp(serverId: number) {
       const { data } = await api.post(`/servers/${serverId}/web-apps/${appId}/setup`);
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['servers', serverId, 'web-apps'] });
-      toast.success('Web app setup completed successfully');
+      if (data.success === false) {
+        toast.error(data.message || 'Setup failed.');
+      } else {
+        toast.success('Web app setup completed successfully');
+      }
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.error || err?.response?.data?.message || 'Setup failed');
+      const message = err?.response?.data?.message || 'Setup failed.';
+      toast.error(message);
     },
   });
 }

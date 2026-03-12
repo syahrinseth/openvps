@@ -16,6 +16,7 @@ use App\Services\WebAppSetupService;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class WebAppController extends Controller
 {
@@ -303,10 +304,18 @@ class WebAppController extends Controller
         } catch (Exception $e) {
             $webApp->update(['status' => 'failed']);
 
+            Log::error("Web app setup failed for [{$webApp->name}] on server [{$server->name}]: {$e->getMessage()}", [
+                'web_app_id' => $webApp->id,
+                'server_id'  => $server->id,
+                'ip_address' => $server->ip_address,
+                'exception'  => $e->getMessage(),
+            ]);
+
             return response()->json([
-                'message' => 'Web app setup failed.',
-                'error'   => $e->getMessage(),
-            ], 500);
+                'success' => false,
+                'message' => 'Setup failed: ' . $e->getMessage(),
+                'data'    => new WebAppResource($webApp->fresh()),
+            ]);
         }
     }
 
