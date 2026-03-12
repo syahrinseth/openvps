@@ -36,6 +36,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
     // Servers
+    Route::post('/servers/test-connection', [ServerController::class, 'testConnectionWithCredentials']);
     Route::apiResource('servers', ServerController::class);
     Route::post('/servers/{server}/test-connection', [ServerController::class, 'testConnection']);
 

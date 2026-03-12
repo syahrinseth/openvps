@@ -105,6 +105,43 @@ class ServerConnectionService
     }
 
     /**
+     * Test SSH connection using raw credentials (no saved Server model).
+     */
+    public function testConnectionWithCredentials(
+        string $ipAddress,
+        int $port,
+        string $sshUser,
+        ?string $sshPrivateKey,
+        ?string $sshPassword,
+    ): bool {
+        try {
+            $ssh = new SSH2($ipAddress, $port);
+            $ssh->setTimeout(30);
+
+            $authenticated = false;
+
+            if ($sshPrivateKey) {
+                $key = PublicKeyLoader::load($sshPrivateKey);
+                $authenticated = $ssh->login($sshUser, $key);
+            } elseif ($sshPassword) {
+                $authenticated = $ssh->login($sshUser, $sshPassword);
+            }
+
+            if (!$authenticated) {
+                return false;
+            }
+
+            $output = $ssh->exec('echo "connection_ok"');
+
+            return str_contains(trim($output), 'connection_ok');
+        } catch (Exception $e) {
+            Log::error("Credential-based connection test failed for {$ipAddress}: {$e->getMessage()}");
+
+            return false;
+        }
+    }
+
+    /**
      * Test SSH connection to a server.
      */
     public function testConnection(Server $server): bool

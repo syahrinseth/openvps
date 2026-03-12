@@ -127,6 +127,33 @@ class ServerController extends Controller
     }
 
     /**
+     * Test SSH connection using raw credentials (before a server is saved).
+     */
+    public function testConnectionWithCredentials(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'ip_address'      => ['required', 'string'],
+            'ssh_port'        => ['required', 'integer', 'min:1', 'max:65535'],
+            'ssh_user'        => ['required', 'string'],
+            'ssh_private_key' => ['nullable', 'string'],
+            'ssh_password'    => ['nullable', 'string'],
+        ]);
+
+        $connected = $this->connectionService->testConnectionWithCredentials(
+            ipAddress:     $validated['ip_address'],
+            port:          $validated['ssh_port'],
+            sshUser:       $validated['ssh_user'],
+            sshPrivateKey: $validated['ssh_private_key'] ?? null,
+            sshPassword:   $validated['ssh_password'] ?? null,
+        );
+
+        return response()->json([
+            'connected' => $connected,
+            'message'   => $connected ? 'Connection successful.' : 'Connection failed.',
+        ]);
+    }
+
+    /**
      * Test SSH connection to a server.
      */
     public function testConnection(Request $request, Server $server): JsonResponse
