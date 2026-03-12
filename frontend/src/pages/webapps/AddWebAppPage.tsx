@@ -22,7 +22,13 @@ const webAppSchema = z.object({
   git_branch: z.string().optional(),
   deploy_path: z.string().min(1, 'Deploy path is required'),
   docker_compose_path: z.string().optional(),
-  port: z.number().min(1).max(65535).optional(),
+  port: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || (!isNaN(Number(v)) && Number(v) >= 1 && Number(v) <= 65535),
+      { message: 'Port must be between 1 and 65535' }
+    ),
   docker_container_name: z.string().optional(),
   auto_deploy: z.boolean(),
 });
@@ -64,8 +70,11 @@ export default function AddWebAppPage() {
   const onSubmit = async (values: WebAppFormValues) => {
     setIsSubmitting(true);
     try {
-      const { server_id, ...rest } = values;
-      await api.post(`/servers/${server_id}/web-apps`, rest);
+      const { server_id, port, ...rest } = values;
+      await api.post(`/servers/${server_id}/web-apps`, {
+        ...rest,
+        port: port ? Number(port) : undefined,
+      });
       toast.success('Web app created successfully');
       navigate(`/web-apps`);
     } catch (err: any) {
@@ -96,8 +105,12 @@ export default function AddWebAppPage() {
             id="server_id"
             label="Server"
             options={serverOptions}
-            value={String(form.watch('server_id') ?? '')}
-            onChange={(e) => form.setValue('server_id', e.target.value ? Number(e.target.value) : 0)}
+            value={String(form.watch('server_id') || '')}
+            onChange={(e) =>
+              form.setValue('server_id', e.target.value ? Number(e.target.value) : 0, {
+                shouldValidate: true,
+              })
+            }
             error={form.formState.errors.server_id?.message}
           />
 
@@ -162,6 +175,7 @@ export default function AddWebAppPage() {
               label="Port (optional)"
               type="number"
               placeholder="3000"
+              error={form.formState.errors.port?.message}
               {...form.register('port')}
             />
             <Input
