@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('branch')->default('main');
             $table->string('secret');
             $table->string('webhook_url');
-            $table->json('events')->default(json_encode(['push']));
+            $table->json('events')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamp('last_delivery_at')->nullable();
             $table->timestamps();

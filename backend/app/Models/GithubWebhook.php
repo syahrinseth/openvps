@@ -12,11 +12,18 @@ class GithubWebhook extends Model
     protected $fillable = [
         'server_id',
         'web_app_id',
+        'repository',
+        'branch',
         'webhook_url',
         'secret',
         'events',
         'is_active',
         'last_delivery_at',
+    ];
+
+    protected $attributes = [
+        'branch' => 'main',
+        'is_active' => true,
     ];
 
     protected $hidden = [
