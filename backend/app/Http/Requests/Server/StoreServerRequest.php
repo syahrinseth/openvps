@@ -14,20 +14,17 @@ class StoreServerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'hostname' => ['required', 'string', 'max:255'],
-            'ip_address' => ['required', 'ip'],
-            'ssh_port' => ['sometimes', 'integer', 'min:1', 'max:65535'],
-            'ssh_user' => ['required', 'string', 'max:255'],
+            'name'            => ['required', 'string', 'max:255'],
+            'hostname'        => ['required', 'string', 'max:255'],
+            'ip_address'      => ['required', 'ip'],
+            'ssh_port'        => ['sometimes', 'integer', 'min:1', 'max:65535'],
+            'ssh_user'        => ['required', 'string', 'max:255'],
             'ssh_private_key' => ['nullable', 'string'],
-            'ssh_password' => ['nullable', 'string'],
-            'provider' => ['nullable', 'string', 'max:255'],
-            'region' => ['nullable', 'string', 'max:255'],
-            'plan' => ['nullable', 'string', 'max:255'],
-            'os' => ['nullable', 'string', 'max:255'],
-            'php_version' => ['nullable', 'string', 'max:10'],
-            'web_server' => ['nullable', 'string', 'in:nginx,apache'],
-            'database_server' => ['nullable', 'string', 'in:mysql,mariadb,postgresql'],
+            'ssh_password'    => ['nullable', 'string'],
+            'provider'        => ['required', 'string', 'max:255'],
+            'notes'           => ['nullable', 'string'],
+            'os_type'         => ['nullable', 'string', 'max:255'],
+            'os_version'      => ['nullable', 'string', 'max:255'],
         ];
     }
 

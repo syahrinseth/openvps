@@ -40,9 +40,10 @@ class ServerController extends Controller
     {
         $data = $request->validated();
         $data['user_id'] = $request->user()->id;
-        $data['port'] = $data['ssh_port'] ?? 22;
+        $data['ssh_port'] = $data['ssh_port'] ?? 22;
         $data['status'] = 'active';
-        unset($data['ssh_port']);
+        $data['os_type'] = $data['os_type'] ?? 'linux';
+        $data['os_version'] = $data['os_version'] ?? 'unknown';
 
         $server = Server::create($data);
 
@@ -83,11 +84,7 @@ class ServerController extends Controller
 
         $data = $request->validated();
 
-        if (isset($data['ssh_port'])) {
-            $data['port'] = $data['ssh_port'];
-            unset($data['ssh_port']);
-        }
-
+        // ssh_port maps directly to the ssh_port column — no remapping needed
         $server->update($data);
 
         $this->activityLog->log(
@@ -162,7 +159,7 @@ class ServerController extends Controller
 
         $connected = $this->connectionService->testConnection($server);
 
-        $server->update(['status' => $connected ? 'active' : 'disconnected']);
+        $server->update(['status' => $connected ? 'active' : 'unreachable']);
 
         return response()->json([
             'connected' => $connected,

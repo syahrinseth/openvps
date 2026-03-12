@@ -16,7 +16,7 @@ class ServerConnectionService
      */
     public function connect(Server $server): SSH2
     {
-        $ssh = new SSH2($server->ip_address, $server->port ?? 22);
+        $ssh = new SSH2($server->ip_address, $server->ssh_port ?? 22);
         $ssh->setTimeout(30);
 
         $authenticated = false;
@@ -61,7 +61,7 @@ class ServerConnectionService
      */
     public function upload(Server $server, string $localPath, string $remotePath): bool
     {
-        $sftp = new SFTP($server->ip_address, $server->port ?? 22);
+        $sftp = new SFTP($server->ip_address, $server->ssh_port ?? 22);
         $sftp->setTimeout(30);
 
         $authenticated = false;
@@ -85,7 +85,7 @@ class ServerConnectionService
      */
     public function download(Server $server, string $remotePath, string $localPath): bool
     {
-        $sftp = new SFTP($server->ip_address, $server->port ?? 22);
+        $sftp = new SFTP($server->ip_address, $server->ssh_port ?? 22);
         $sftp->setTimeout(30);
 
         $authenticated = false;
