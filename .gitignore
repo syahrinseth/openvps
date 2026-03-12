@@ -13,7 +13,7 @@ docker/nginx/ssl/*.crt
 CREDENTIALS.txt
 
 # Backups (stored on server, not in repo)
-backups/
+/backups/
 
 # OS files
 .DS_Store
