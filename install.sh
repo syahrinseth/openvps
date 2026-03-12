@@ -48,11 +48,45 @@ echo ""
 INSTALL_DIR="/opt/openvps"
 DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 32)
 DB_ROOT_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 32)
-APP_KEY=""
+APP_KEY=$(openssl rand -base64 32)
+# Generate Reverb keys once and reuse consistently across all configs
+REVERB_APP_KEY="openvps-key-$(openssl rand -hex 8)"
+REVERB_APP_SECRET="openvps-secret-$(openssl rand -hex 16)"
 SERVER_IP=$(curl -4 -s ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
 
 echo -e "Server IP detected: ${GREEN}${SERVER_IP}${NC}"
 echo ""
+
+# Ask for email configuration
+print_header "Email Configuration (for SSL expiry alerts & deployment notifications)"
+echo "You can configure a real SMTP server now, or skip and use log-only mode."
+echo ""
+read -p "Configure SMTP email? [y/N]: " CONFIGURE_SMTP
+CONFIGURE_SMTP=${CONFIGURE_SMTP:-N}
+
+MAIL_MAILER="log"
+MAIL_HOST="127.0.0.1"
+MAIL_PORT="2525"
+MAIL_USERNAME="null"
+MAIL_PASSWORD="null"
+MAIL_FROM_ADDRESS="noreply@${SERVER_IP}"
+MAIL_SCHEME="null"
+
+if [[ "$CONFIGURE_SMTP" =~ ^[Yy]$ ]]; then
+    read -p "SMTP Host (e.g. smtp.gmail.com): " MAIL_HOST
+    read -p "SMTP Port (587 for TLS, 465 for SSL, 25 for plain): " MAIL_PORT
+    read -p "SMTP Username (your email): " MAIL_USERNAME
+    read -s -p "SMTP Password: " MAIL_PASSWORD
+    echo ""
+    read -p "From Address (e.g. noreply@yourdomain.com): " MAIL_FROM_ADDRESS
+    MAIL_MAILER="smtp"
+    if [ "$MAIL_PORT" = "465" ]; then
+        MAIL_SCHEME="ssl"
+    else
+        MAIL_SCHEME="tls"
+    fi
+    print_success "SMTP configuration saved"
+fi
 
 #=============================================================================
 # Step 1: System Update & Dependencies
@@ -201,15 +235,15 @@ cd ${INSTALL_DIR}
 #=============================================================================
 print_header "Step 7: Creating production environment configuration"
 
-# Generate Laravel APP_KEY
-APP_KEY=$(openssl rand -base64 32)
-
 # Create root .env for docker-compose
 cat > ${INSTALL_DIR}/.env << ROOTENV
 DB_DATABASE=openvps
 DB_USERNAME=openvps
 DB_PASSWORD=${DB_PASSWORD}
 DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+REVERB_APP_ID=openvps-app
+REVERB_APP_KEY=${REVERB_APP_KEY}
+REVERB_APP_SECRET=${REVERB_APP_SECRET}
 ROOTENV
 
 # Create backend .env for production
@@ -258,20 +292,20 @@ REDIS_PASSWORD=null
 REDIS_PORT=6379
 
 REVERB_APP_ID=openvps-app
-REVERB_APP_KEY=openvps-key-$(openssl rand -hex 8)
-REVERB_APP_SECRET=openvps-secret-$(openssl rand -hex 16)
+REVERB_APP_KEY=${REVERB_APP_KEY}
+REVERB_APP_SECRET=${REVERB_APP_SECRET}
 REVERB_HOST=0.0.0.0
 REVERB_PORT=8080
 REVERB_SCHEME=http
 
-MAIL_MAILER=log
-MAIL_SCHEME=null
-MAIL_HOST=127.0.0.1
-MAIL_PORT=2525
-MAIL_USERNAME=null
-MAIL_PASSWORD=null
-MAIL_FROM_ADDRESS="noreply@${SERVER_IP}"
-MAIL_FROM_NAME="\${APP_NAME}"
+MAIL_MAILER=${MAIL_MAILER}
+MAIL_SCHEME=${MAIL_SCHEME}
+MAIL_HOST=${MAIL_HOST}
+MAIL_PORT=${MAIL_PORT}
+MAIL_USERNAME=${MAIL_USERNAME}
+MAIL_PASSWORD=${MAIL_PASSWORD}
+MAIL_FROM_ADDRESS="${MAIL_FROM_ADDRESS}"
+MAIL_FROM_NAME="OpenVPS"
 
 FRONTEND_URL=http://${SERVER_IP}
 SANCTUM_STATEFUL_DOMAINS=${SERVER_IP}
@@ -287,10 +321,10 @@ print_header "Step 8: Building frontend"
 cd ${INSTALL_DIR}/frontend
 npm install
 
-# Create frontend .env with Reverb connection details (uses nginx to proxy /app path)
+# Create frontend .env.production — VITE_REVERB_APP_KEY must match backend REVERB_APP_KEY
 cat > ${INSTALL_DIR}/frontend/.env.production << FRONTENDENV
-VITE_API_URL=http://${SERVER_IP}
-VITE_REVERB_APP_KEY=openvps-key
+VITE_API_BASE_URL=http://${SERVER_IP}
+VITE_REVERB_APP_KEY=${REVERB_APP_KEY}
 VITE_REVERB_HOST=${SERVER_IP}
 VITE_REVERB_PORT=80
 VITE_REVERB_SCHEME=http
@@ -331,17 +365,25 @@ cd ${INSTALL_DIR}
 docker compose build --no-cache
 docker compose up -d
 
-# Wait for MySQL to be ready
+# Wait for MySQL to be ready (poll up to 150s)
 echo "Waiting for MySQL to be ready..."
-sleep 15
+for i in {1..30}; do
+    if docker compose exec -T mysql mysqladmin ping -h localhost -u openvps -p"${DB_PASSWORD}" --silent 2>/dev/null; then
+        print_success "MySQL is ready"
+        break
+    fi
+    echo "  Waiting... ($i/30)"
+    sleep 5
+done
 
 # Run migrations and seed
 docker compose exec -T backend php artisan migrate --force
 docker compose exec -T backend php artisan db:seed --force
 docker compose exec -T backend php artisan config:cache
 docker compose exec -T backend php artisan route:cache
+docker compose exec -T backend php artisan event:cache
 
-print_success "Docker containers started"
+print_success "Docker containers started and database initialized"
 
 #=============================================================================
 # Step 11: Create Admin User
@@ -422,34 +464,35 @@ echo "Running migrations..."
 docker compose exec -T backend php artisan migrate --force
 docker compose exec -T backend php artisan config:cache
 docker compose exec -T backend php artisan route:cache
+docker compose exec -T backend php artisan event:cache
 
 echo "Update complete!"
 UPDATESH
 chmod +x ${INSTALL_DIR}/update.sh
 
-# Backup script
-cat > ${INSTALL_DIR}/backup.sh << 'BACKUPSH'
+# Backup script — uses double-quote heredoc so ${DB_PASSWORD} expands at install time
+cat > ${INSTALL_DIR}/backup.sh << BACKUPSH
 #!/bin/bash
 set -e
 BACKUP_DIR="/opt/openvps/backups"
-DATE=$(date +%Y%m%d_%H%M%S)
-mkdir -p ${BACKUP_DIR}
+DATE=\$(date +%Y%m%d_%H%M%S)
+mkdir -p \${BACKUP_DIR}
 
 echo "Backing up database..."
-docker compose exec -T mysql mysqldump -u openvps -p"${DB_PASSWORD}" openvps > ${BACKUP_DIR}/db_${DATE}.sql
+docker compose -f /opt/openvps/docker-compose.yml exec -T mysql mysqldump -u openvps -p"${DB_PASSWORD}" openvps > \${BACKUP_DIR}/db_\${DATE}.sql
 
 echo "Backing up configuration..."
-tar -czf ${BACKUP_DIR}/config_${DATE}.tar.gz \
+tar -czf \${BACKUP_DIR}/config_\${DATE}.tar.gz \
     /opt/openvps/backend/.env \
     /opt/openvps/.env \
     /opt/openvps/docker/nginx/ \
     /opt/openvps/docker/mysql/
 
 # Keep only last 30 days of backups
-find ${BACKUP_DIR} -type f -mtime +30 -delete
+find \${BACKUP_DIR} -type f -mtime +30 -delete
 
-echo "Backup completed: ${BACKUP_DIR}"
-ls -la ${BACKUP_DIR}/*${DATE}*
+echo "Backup completed: \${BACKUP_DIR}"
+ls -la \${BACKUP_DIR}/*\${DATE}*
 BACKUPSH
 chmod +x ${INSTALL_DIR}/backup.sh
 
@@ -538,6 +581,10 @@ Database:
   User:          openvps
   Password:      ${DB_PASSWORD}
   Root Password: ${DB_ROOT_PASSWORD}
+
+Reverb WebSocket:
+  App Key:    ${REVERB_APP_KEY}
+  App Secret: ${REVERB_APP_SECRET}
 
 IMPORTANT: Delete this file after saving credentials!
   rm /opt/openvps/CREDENTIALS.txt
