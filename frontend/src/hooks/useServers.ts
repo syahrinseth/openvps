@@ -63,9 +63,14 @@ export function useUpdateServer() {
       const { data } = await api.put(`/servers/${id}`, serverData);
       return data.data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['servers'] });
+      queryClient.invalidateQueries({ queryKey: ['servers', variables.id] });
       toast.success('Server updated successfully');
+    },
+    onError: (err: any) => {
+      const message = err?.response?.data?.message || 'Failed to update server.';
+      toast.error(message);
     },
   });
 }

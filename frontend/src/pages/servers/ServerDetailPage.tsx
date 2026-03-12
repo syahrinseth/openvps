@@ -25,13 +25,20 @@ import {
   ArrowLeft,
   BarChart3,
   Network,
+  Pencil,
 } from 'lucide-react';
-import { useServer, useServerMetrics, useTestConnection } from '@/hooks/useServers';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useServer, useServerMetrics, useTestConnection, useUpdateServer } from '@/hooks/useServers';
 import Header from '@/components/layout/Header';
 import Card, { CardHeader } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import StatusIndicator from '@/components/ui/StatusIndicator';
+import Modal from '@/components/ui/Modal';
+import Input from '@/components/ui/Input';
+import Select from '@/components/ui/Select';
 import type { ServerMetric } from '@/types';
 
 const tabs = [
@@ -61,15 +68,78 @@ function formatBytes(mb: number): string {
   return `${mb.toFixed(0)} MB`;
 }
 
+const providerOptions = [
+  { value: 'hetzner', label: 'Hetzner' },
+  { value: 'digitalocean', label: 'DigitalOcean' },
+  { value: 'linode', label: 'Linode' },
+  { value: 'vultr', label: 'Vultr' },
+  { value: 'aws', label: 'AWS' },
+  { value: 'custom', label: 'Custom / Other' },
+];
+
+const editServerSchema = z.object({
+  name:            z.string().min(1, 'Name is required'),
+  hostname:        z.string().min(1, 'Hostname is required'),
+  ip_address:      z.string().min(1, 'IP address is required').regex(/^(?:(?:\d{1,3}\.){3}\d{1,3}|[a-fA-F0-9:]+)$/, 'Invalid IP address'),
+  ssh_port:        z.number().min(1).max(65535),
+  ssh_user:        z.string().min(1, 'SSH user is required'),
+  ssh_private_key: z.string().optional(),
+  ssh_password:    z.string().optional(),
+  provider:        z.string().optional(),
+  notes:           z.string().optional(),
+});
+
+type EditServerFormData = z.infer<typeof editServerSchema>;
+
 export default function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const serverId = Number(id);
   const [activeTab, setActiveTab] = useState('overview');
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: server, isLoading, error } = useServer(serverId);
   const { data: metrics } = useServerMetrics(serverId);
   const testConnection = useTestConnection();
+  const updateServer = useUpdateServer();
+
+  const {
+    register: registerEdit,
+    handleSubmit: handleEditSubmit,
+    reset: resetEdit,
+    formState: { errors: editErrors },
+  } = useForm<EditServerFormData>({
+    resolver: zodResolver(editServerSchema),
+  });
+
+  const openEdit = () => {
+    if (!server) return;
+    resetEdit({
+      name:            server.name,
+      hostname:        server.hostname,
+      ip_address:      server.ip_address,
+      ssh_port:        server.ssh_port,
+      ssh_user:        server.ssh_user,
+      ssh_private_key: '',
+      ssh_password:    '',
+      provider:        server.provider ?? '',
+      notes:           server.notes ?? '',
+    });
+    setEditOpen(true);
+  };
+
+  const onEditSubmit = async (data: EditServerFormData) => {
+    // Strip empty optional credential fields so we don't overwrite with blank
+    const payload: Record<string, unknown> = { ...data, id: serverId };
+    if (!payload.ssh_private_key) delete payload.ssh_private_key;
+    if (!payload.ssh_password)    delete payload.ssh_password;
+    try {
+      await updateServer.mutateAsync(payload as any);
+      setEditOpen(false);
+    } catch {
+      // Error handled by hook
+    }
+  };
 
   if (isLoading) {
     return (
@@ -127,14 +197,20 @@ export default function ServerDetailPage() {
         title={server.name}
         description={`${server.ip_address} - ${server.hostname}`}
         actions={
-          <Button
-            variant="outline"
-            onClick={() => testConnection.mutate(server.id)}
-            isLoading={testConnection.isPending}
-          >
-            <Wifi className="w-4 h-4 mr-1" />
-            Test Connection
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={openEdit}>
+              <Pencil className="w-4 h-4 mr-1" />
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => testConnection.mutate(server.id)}
+              isLoading={testConnection.isPending}
+            >
+              <Wifi className="w-4 h-4 mr-1" />
+              Test Connection
+            </Button>
+          </div>
         }
       />
 
@@ -468,6 +544,109 @@ export default function ServerDetailPage() {
           </div>
         </Card>
       )}
+
+      {/* ── Edit Server Modal ── */}
+      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Server" size="lg">
+        <form onSubmit={handleEditSubmit(onEditSubmit)} className="space-y-5">
+          {/* Basic Info */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Basic Information</p>
+            <div className="space-y-3">
+              <Input
+                id="edit-name"
+                label="Server Name"
+                error={editErrors.name?.message}
+                {...registerEdit('name')}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  id="edit-hostname"
+                  label="Hostname"
+                  error={editErrors.hostname?.message}
+                  {...registerEdit('hostname')}
+                />
+                <Input
+                  id="edit-ip"
+                  label="IP Address"
+                  error={editErrors.ip_address?.message}
+                  {...registerEdit('ip_address')}
+                />
+              </div>
+              <Select
+                id="edit-provider"
+                label="Provider"
+                options={providerOptions}
+                error={editErrors.provider?.message}
+                {...registerEdit('provider')}
+              />
+            </div>
+          </div>
+
+          {/* SSH Credentials */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">SSH Credentials</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  id="edit-ssh-user"
+                  label="SSH User"
+                  error={editErrors.ssh_user?.message}
+                  {...registerEdit('ssh_user')}
+                />
+                <Input
+                  id="edit-ssh-port"
+                  label="SSH Port"
+                  type="number"
+                  error={editErrors.ssh_port?.message}
+                  {...registerEdit('ssh_port', { valueAsNumber: true })}
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-ssh-key" className="block text-sm font-medium text-gray-700 mb-1">
+                  SSH Private Key
+                  <span className="ml-1 text-xs text-gray-400 font-normal">(leave blank to keep existing)</span>
+                </label>
+                <textarea
+                  id="edit-ssh-key"
+                  rows={5}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                  placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                  {...registerEdit('ssh_private_key')}
+                />
+              </div>
+              <Input
+                id="edit-ssh-password"
+                label="SSH Password"
+                type="password"
+                placeholder="Leave blank to keep existing"
+                error={editErrors.ssh_password?.message}
+                {...registerEdit('ssh_password')}
+              />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label htmlFor="edit-notes" className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <textarea
+              id="edit-notes"
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              {...registerEdit('notes')}
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+            <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={updateServer.isPending}>
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
