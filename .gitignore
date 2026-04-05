@@ -4,10 +4,14 @@
 backend/.env
 !backend/.env.example
 
-# Docker volumes
+# Docker volumes — SSL certificates and private keys
 docker/nginx/ssl/*.pem
 docker/nginx/ssl/*.key
 docker/nginx/ssl/*.crt
+docker/nginx/ssl/accounts/
+docker/nginx/ssl/archive/
+docker/nginx/ssl/live/
+docker/nginx/ssl/renewal/
 
 # Traefik — contains private keys for all SSL certificates
 docker/traefik/acme/acme.json
