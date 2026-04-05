@@ -93,16 +93,30 @@ export default function SslListPage() {
     setRequestModalOpen(true);
   };
 
+  const validateDomain = (value: string): string | null => {
+    if (!value.trim()) return 'Domain is required';
+    const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+    if (!domainRegex.test(value.trim())) {
+      return 'Invalid domain format (e.g. example.com or sub.example.com)';
+    }
+    return null;
+  };
+
   const handleRequest = async () => {
-    if (!formDomain.trim()) {
-      setFormError('Domain is required');
+    const validationError = validateDomain(formDomain);
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
-    await requestCert.mutateAsync({
-      domain: formDomain,
-      type: formType,
-    });
-    setRequestModalOpen(false);
+    try {
+      await requestCert.mutateAsync({
+        domain: formDomain.trim(),
+        type: formType,
+      });
+      setRequestModalOpen(false);
+    } catch {
+      // error toast is handled in the hook
+    }
   };
 
   const handleDelete = async () => {
@@ -276,7 +290,7 @@ export default function SslListPage() {
             value={formDomain}
             onChange={(e) => {
               setFormDomain(e.target.value);
-              setFormError('');
+              if (formError) setFormError('');
             }}
             error={formError}
           />

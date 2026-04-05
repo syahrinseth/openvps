@@ -16,12 +16,39 @@ class DeploymentService
 {
     public function __construct(
         protected ServerConnectionService $connection,
+        protected LocalDeploymentService $localDeployment,
     ) {}
 
     /**
      * Deploy a web application.
+     * Branches on server->is_local — Ref: TRAEFIK_MIGRATION_PLAN.md Phase 3.6
      */
     public function deploy(WebApp $webApp, ?string $commitHash = null): Deployment
+    {
+        if ($webApp->server->is_local) {
+            return $this->localDeployment->deploy($webApp, $commitHash);
+        }
+
+        return $this->deployRemote($webApp, $commitHash);
+    }
+
+    /**
+     * Rollback to a previous deployment.
+     * Branches on server->is_local.
+     */
+    public function rollback(Deployment $deployment): Deployment
+    {
+        if ($deployment->webApp->server->is_local) {
+            return $this->localDeployment->rollback($deployment);
+        }
+
+        return $this->rollbackRemote($deployment);
+    }
+
+    /**
+     * Remote SSH deploy (original implementation).
+     */
+    protected function deployRemote(WebApp $webApp, ?string $commitHash = null): Deployment
     {
         $server = $webApp->server;
 
@@ -103,9 +130,9 @@ class DeploymentService
     }
 
     /**
-     * Rollback to a previous deployment.
+     * Remote SSH rollback (original implementation).
      */
-    public function rollback(Deployment $deployment): Deployment
+    protected function rollbackRemote(Deployment $deployment): Deployment
     {
         $webApp = $deployment->webApp;
         $server = $webApp->server;

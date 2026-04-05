@@ -1,0 +1,25 @@
+# Local deployment stub — Custom Dockerfile
+# Ref: TRAEFIK_MIGRATION_PLAN.md — Phase 3.3
+# Traefik routes {{DOMAIN}} → this container. No host port binding.
+# The app must listen on {{INTERNAL_PORT}} (default 8080) inside the container.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{APP_NAME}}-app
+    networks:
+      - traefik-public
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.{{APP_NAME}}.rule=Host(`{{DOMAIN}}`)"
+      - "traefik.http.routers.{{APP_NAME}}.entrypoints=websecure"
+      - "traefik.http.routers.{{APP_NAME}}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.{{APP_NAME}}.middlewares=secure-headers@file,rate-limit@file"
+      - "traefik.http.services.{{APP_NAME}}.loadbalancer.server.port={{INTERNAL_PORT}}"
+
+networks:
+  traefik-public:
+    external: true

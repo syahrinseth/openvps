@@ -78,15 +78,16 @@ const providerOptions = [
 ];
 
 const editServerSchema = z.object({
-  name:            z.string().min(1, 'Name is required'),
-  hostname:        z.string().min(1, 'Hostname is required'),
-  ip_address:      z.string().min(1, 'IP address is required').regex(/^(?:(?:\d{1,3}\.){3}\d{1,3}|[a-fA-F0-9:]+)$/, 'Invalid IP address'),
-  ssh_port:        z.number().min(1).max(65535),
-  ssh_user:        z.string().min(1, 'SSH user is required'),
-  ssh_private_key: z.string().optional(),
-  ssh_password:    z.string().optional(),
-  provider:        z.string().optional(),
-  notes:           z.string().optional(),
+  name:                z.string().min(1, 'Name is required'),
+  hostname:            z.string().min(1, 'Hostname is required'),
+  ip_address:          z.string().min(1, 'IP address is required').regex(/^(?:(?:\d{1,3}\.){3}\d{1,3}|[a-fA-F0-9:]+)$/, 'Invalid IP address'),
+  ssh_port:            z.number().min(1).max(65535),
+  ssh_user:            z.string().min(1, 'SSH user is required'),
+  ssh_private_key:     z.string().optional(),
+  ssh_key_passphrase:  z.string().optional(),
+  ssh_password:        z.string().optional(),
+  provider:            z.string().optional(),
+  notes:               z.string().optional(),
 });
 
 type EditServerFormData = z.infer<typeof editServerSchema>;
@@ -115,15 +116,16 @@ export default function ServerDetailPage() {
   const openEdit = () => {
     if (!server) return;
     resetEdit({
-      name:            server.name,
-      hostname:        server.hostname,
-      ip_address:      server.ip_address,
-      ssh_port:        server.ssh_port,
-      ssh_user:        server.ssh_user,
-      ssh_private_key: '',
-      ssh_password:    '',
-      provider:        server.provider ?? '',
-      notes:           server.notes ?? '',
+      name:               server.name,
+      hostname:           server.hostname,
+      ip_address:         server.ip_address,
+      ssh_port:           server.ssh_port,
+      ssh_user:           server.ssh_user,
+      ssh_private_key:    '',
+      ssh_key_passphrase: '',
+      ssh_password:       '',
+      provider:           server.provider ?? '',
+      notes:              server.notes ?? '',
     });
     setEditOpen(true);
   };
@@ -131,8 +133,9 @@ export default function ServerDetailPage() {
   const onEditSubmit = async (data: EditServerFormData) => {
     // Strip empty optional credential fields so we don't overwrite with blank
     const payload: Record<string, unknown> = { ...data, id: serverId };
-    if (!payload.ssh_private_key) delete payload.ssh_private_key;
-    if (!payload.ssh_password)    delete payload.ssh_password;
+    if (!payload.ssh_private_key)    delete payload.ssh_private_key;
+    if (!payload.ssh_key_passphrase) delete payload.ssh_key_passphrase;
+    if (!payload.ssh_password)       delete payload.ssh_password;
     try {
       await updateServer.mutateAsync(payload as any);
       setEditOpen(false);
@@ -601,27 +604,45 @@ export default function ServerDetailPage() {
                   {...registerEdit('ssh_port', { valueAsNumber: true })}
                 />
               </div>
-              <div>
-                <label htmlFor="edit-ssh-key" className="block text-sm font-medium text-gray-700 mb-1">
-                  SSH Private Key
-                  <span className="ml-1 text-xs text-gray-400 font-normal">(leave blank to keep existing)</span>
-                </label>
-                <textarea
-                  id="edit-ssh-key"
-                  rows={5}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-                  placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                  {...registerEdit('ssh_private_key')}
+
+              {/* SSH Key Auth */}
+              <div className="space-y-3 rounded-lg border border-gray-200 p-3">
+                <p className="text-sm font-medium text-gray-700">SSH Key Authentication</p>
+                <div>
+                  <label htmlFor="edit-ssh-key" className="block text-sm font-medium text-gray-700 mb-1">
+                    SSH Private Key
+                    <span className="ml-1 text-xs text-gray-400 font-normal">(leave blank to keep existing)</span>
+                  </label>
+                  <textarea
+                    id="edit-ssh-key"
+                    rows={5}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                    placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                    {...registerEdit('ssh_private_key')}
+                  />
+                </div>
+                <Input
+                  id="edit-ssh-key-passphrase"
+                  label="Key Passphrase"
+                  type="password"
+                  placeholder="Leave blank to keep existing (or none if key has no passphrase)"
+                  error={editErrors.ssh_key_passphrase?.message}
+                  {...registerEdit('ssh_key_passphrase')}
                 />
               </div>
-              <Input
-                id="edit-ssh-password"
-                label="SSH Password"
-                type="password"
-                placeholder="Leave blank to keep existing"
-                error={editErrors.ssh_password?.message}
-                {...registerEdit('ssh_password')}
-              />
+
+              {/* Password Auth */}
+              <div className="space-y-3 rounded-lg border border-gray-200 p-3">
+                <p className="text-sm font-medium text-gray-700">Password Authentication <span className="text-gray-400 font-normal text-xs">(fallback if no key)</span></p>
+                <Input
+                  id="edit-ssh-password"
+                  label="SSH Password"
+                  type="password"
+                  placeholder="Leave blank to keep existing"
+                  error={editErrors.ssh_password?.message}
+                  {...registerEdit('ssh_password')}
+                />
+              </div>
             </div>
           </div>
 

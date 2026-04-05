@@ -21,11 +21,16 @@ class DatabaseSeeder extends Seeder
 
         // User::factory(10)->create();
 
-        $testUser = User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'email_verified_at' => now(),
-        ]);
-        $testUser->assignRole('admin');
+        $testUser = User::firstOrCreate(
+            ['email' => 'test@example.com'],
+            [
+                'name' => 'Test User',
+                'email_verified_at' => now(),
+                'password' => \Illuminate\Support\Facades\Hash::make('password'),
+            ]
+        );
+        if (!$testUser->hasRole('admin')) {
+            $testUser->assignRole('admin');
+        }
     }
 }

@@ -131,19 +131,21 @@ class ServerController extends Controller
     public function testConnectionWithCredentials(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'ip_address'      => ['required', 'string'],
-            'ssh_port'        => ['required', 'integer', 'min:1', 'max:65535'],
-            'ssh_user'        => ['required', 'string'],
-            'ssh_private_key' => ['nullable', 'string'],
-            'ssh_password'    => ['nullable', 'string'],
+            'ip_address'         => ['required', 'string'],
+            'ssh_port'           => ['required', 'integer', 'min:1', 'max:65535'],
+            'ssh_user'           => ['required', 'string'],
+            'ssh_private_key'    => ['nullable', 'string'],
+            'ssh_key_passphrase' => ['nullable', 'string'],
+            'ssh_password'       => ['nullable', 'string'],
         ]);
 
         $connected = $this->connectionService->testConnectionWithCredentials(
-            ipAddress:     $validated['ip_address'],
-            port:          $validated['ssh_port'],
-            sshUser:       $validated['ssh_user'],
-            sshPrivateKey: $validated['ssh_private_key'] ?? null,
-            sshPassword:   $validated['ssh_password'] ?? null,
+            ipAddress:        $validated['ip_address'],
+            port:             $validated['ssh_port'],
+            sshUser:          $validated['ssh_user'],
+            sshPrivateKey:    $validated['ssh_private_key'] ?? null,
+            sshKeyPassphrase: $validated['ssh_key_passphrase'] ?? null,
+            sshPassword:      $validated['ssh_password'] ?? null,
         );
 
         return response()->json([

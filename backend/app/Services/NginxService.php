@@ -16,9 +16,16 @@ class NginxService
 
     /**
      * Create a virtual host configuration.
+     * Only applicable to remote SSH-managed servers — Ref: TRAEFIK_MIGRATION_PLAN.md Phase 4
      */
     public function createVirtualHost(Server $server, WebApp $webApp, string $domain, int $port): NginxConfig
     {
+        if ($server->is_local) {
+            throw new Exception(
+                "Cannot create an Nginx virtual host for a local server. " .
+                "Local servers use Traefik Docker labels for routing."
+            );
+        }
         $configContent = $this->generateConfig($domain, $port);
 
         $remotePath = "/etc/nginx/sites-available/{$domain}";

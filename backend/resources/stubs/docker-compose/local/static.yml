@@ -1,0 +1,24 @@
+# Local deployment stub — Static HTML/CSS/JS
+# Ref: TRAEFIK_MIGRATION_PLAN.md — Phase 3.3
+# Traefik routes {{DOMAIN}} → this container. No host port binding.
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: {{APP_NAME}}-nginx
+    volumes:
+      - .:/usr/share/nginx/html:ro
+    networks:
+      - traefik-public
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.{{APP_NAME}}.rule=Host(`{{DOMAIN}}`)"
+      - "traefik.http.routers.{{APP_NAME}}.entrypoints=websecure"
+      - "traefik.http.routers.{{APP_NAME}}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.{{APP_NAME}}.middlewares=secure-headers@file,compress@file"
+      - "traefik.http.services.{{APP_NAME}}.loadbalancer.server.port=80"
+
+networks:
+  traefik-public:
+    external: true

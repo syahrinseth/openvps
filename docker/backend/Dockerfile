@@ -34,7 +34,13 @@ RUN composer install --no-dev --optimize-autoloader
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
+# Entrypoint — re-applies ownership at runtime (volume mounts overwrite build-time chown)
+# Written inline because the build context is ./backend, not the repo root.
+RUN printf '#!/bin/sh\nset -e\nchown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache\nexec "$@"\n' \
+    > /entrypoint.sh && chmod +x /entrypoint.sh
+
 # Expose port 9000
 EXPOSE 9000
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["php-fpm"]

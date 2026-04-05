@@ -1,0 +1,36 @@
+# Traefik dynamic configuration — reusable middlewares
+# Ref: TRAEFIK_MIGRATION_PLAN.md — Phase 1.2
+
+http:
+  middlewares:
+
+    # Security response headers applied to all panel routes
+    secure-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customResponseHeaders:
+          X-Powered-By: ""
+
+    # Basic rate limiting — 100 req/s average, burst 200
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 200
+
+    # Compress responses
+    compress:
+      compress: {}
+
+    # Redirect www → non-www (apply per-router as needed)
+    www-to-nonwww:
+      redirectRegex:
+        regex: "^https://www\\.(.*)"
+        replacement: "https://${1}"
+        permanent: true

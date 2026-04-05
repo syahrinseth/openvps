@@ -10,17 +10,30 @@ class WebAppSetupService
 {
     public function __construct(
         protected ServerConnectionService $connection,
+        protected LocalDeploymentService $localDeployment,
     ) {}
 
     /**
-     * Initialize a web app on the remote server:
-     *  1. Ensure deploy_path exists
-     *  2. Clone the git repository (public or private)
-     *  3. Generate docker-compose.yml if one is not already present
+     * Initialize a web app on the target server.
+     * Branches on server->is_local:
+     *  - local  → LocalDeploymentService (no SSH, docker compose on control plane)
+     *  - remote → SSH-based setup (existing behaviour)
      *
-     * @throws Exception with a user-friendly message on failure
+     * Ref: TRAEFIK_MIGRATION_PLAN.md — Phase 3.5
      */
     public function setup(WebApp $webApp): array
+    {
+        if ($webApp->server->is_local) {
+            return $this->localDeployment->setup($webApp);
+        }
+
+        return $this->setupRemote($webApp);
+    }
+
+    /**
+     * SSH-based setup for remote servers (original implementation).
+     */
+    protected function setupRemote(WebApp $webApp): array
     {
         $log = '';
 
@@ -103,6 +116,19 @@ class WebAppSetupService
         if (strpos($check, 'EXISTS') !== false) {
             $log .= "    Repository already cloned — skipping clone.\n";
             return $log;
+        }
+
+        // Check if the deploy path is non-empty (git clone will refuse to clone into it)
+        $empty = $this->connection->execute(
+            $server,
+            "find " . escapeshellarg($deployPath) . " -mindepth 1 -maxdepth 1 | head -1"
+        );
+
+        if (trim($empty) !== '') {
+            throw new Exception(
+                "Deploy path [{$deployPath}] already exists and is not empty. " .
+                "Please specify an empty directory (e.g. " . rtrim($deployPath, '/') . "/" . basename($repo, '.git') . "/)."
+            );
         }
 
         $isPrivate = $this->isPrivateRepo($repo);

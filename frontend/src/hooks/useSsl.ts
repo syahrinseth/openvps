@@ -36,8 +36,12 @@ export function useRequestCertificate(serverId: number) {
       queryClient.invalidateQueries({ queryKey: ['servers', serverId, 'ssl-certificates'] });
       toast.success('SSL certificate requested successfully');
     },
-    onError: () => {
-      toast.error('Failed to request SSL certificate');
+    onError: (error: any) => {
+      const detail =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        'Failed to request SSL certificate';
+      toast.error(detail);
     },
   });
 }
@@ -51,6 +55,13 @@ export function useDeleteCertificate(serverId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['servers', serverId, 'ssl-certificates'] });
       toast.success('SSL certificate deleted');
+    },
+    onError: (error: any) => {
+      const detail =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        'Failed to delete SSL certificate';
+      toast.error(detail);
     },
   });
 }
@@ -66,8 +77,12 @@ export function useRenewCertificate(serverId: number) {
       queryClient.invalidateQueries({ queryKey: ['servers', serverId, 'ssl-certificates'] });
       toast.success('SSL certificate renewal started');
     },
-    onError: () => {
-      toast.error('Failed to renew SSL certificate');
+    onError: (error: any) => {
+      const detail =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        'Failed to renew SSL certificate';
+      toast.error(detail);
     },
   });
 }

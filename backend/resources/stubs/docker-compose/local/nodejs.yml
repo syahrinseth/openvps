@@ -1,0 +1,29 @@
+# Local deployment stub — Node.js app
+# Ref: TRAEFIK_MIGRATION_PLAN.md — Phase 3.3
+# Traefik routes {{DOMAIN}} → this container. No host port binding.
+services:
+  app:
+    image: node:20-alpine
+    container_name: {{APP_NAME}}-app
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "npm install && npm start"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    networks:
+      - traefik-public
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.{{APP_NAME}}.rule=Host(`{{DOMAIN}}`)"
+      - "traefik.http.routers.{{APP_NAME}}.entrypoints=websecure"
+      - "traefik.http.routers.{{APP_NAME}}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.{{APP_NAME}}.middlewares=secure-headers@file,rate-limit@file"
+      - "traefik.http.services.{{APP_NAME}}.loadbalancer.server.port=3000"
+
+networks:
+  traefik-public:
+    external: true

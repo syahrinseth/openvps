@@ -45,15 +45,15 @@ class RolesAndPermissionsSeeder extends Seeder
         ];
 
         foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission, 'guard_name' => 'web']);
+            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
         // Create Admin role - has all permissions
-        $adminRole = Role::create(['name' => 'admin', 'guard_name' => 'web']);
+        $adminRole = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
         $adminRole->givePermissionTo(Permission::all());
 
         // Create Server Manager role
-        $managerRole = Role::create(['name' => 'server-manager', 'guard_name' => 'web']);
+        $managerRole = Role::firstOrCreate(['name' => 'server-manager', 'guard_name' => 'web']);
         $managerRole->givePermissionTo([
             'servers.view', 'servers.connect',
             'webapps.view', 'webapps.create', 'webapps.update', 'webapps.deploy',
@@ -71,7 +71,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         // Create Developer role
-        $developerRole = Role::create(['name' => 'developer', 'guard_name' => 'web']);
+        $developerRole = Role::firstOrCreate(['name' => 'developer', 'guard_name' => 'web']);
         $developerRole->givePermissionTo([
             'servers.view',
             'webapps.view', 'webapps.deploy',

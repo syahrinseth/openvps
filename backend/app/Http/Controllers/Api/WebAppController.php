@@ -11,6 +11,7 @@ use App\Models\Server;
 use App\Models\WebApp;
 use App\Services\ActivityLogService;
 use App\Services\DeploymentService;
+use App\Services\LocalDeploymentService;
 use App\Services\ServerConnectionService;
 use App\Services\WebAppSetupService;
 use Exception;
@@ -23,6 +24,7 @@ class WebAppController extends Controller
     public function __construct(
         protected DeploymentService $deploymentService,
         protected ServerConnectionService $connectionService,
+        protected LocalDeploymentService $localDeploymentService,
         protected ActivityLogService $activityLog,
         protected WebAppSetupService $setupService,
     ) {}
@@ -168,6 +170,7 @@ class WebAppController extends Controller
 
     /**
      * Start a web app's process on the server.
+     * Branches on server->is_local — Ref: TRAEFIK_MIGRATION_PLAN.md Phase 3.7
      */
     public function start(Request $request, Server $server, WebApp $webApp): JsonResponse
     {
@@ -175,10 +178,13 @@ class WebAppController extends Controller
         $this->authorizeWebAppBelongsToServer($webApp, $server);
 
         try {
-            $command = "docker compose -f {$webApp->docker_compose_path} up -d 2>&1";
-            $output = $this->connectionService->execute($server, $command);
-
-            $webApp->update(['status' => 'running']);
+            if ($server->is_local) {
+                $output = $this->localDeploymentService->start($webApp);
+            } else {
+                $command = "docker compose -f {$webApp->docker_compose_path} up -d 2>&1";
+                $output = $this->connectionService->execute($server, $command);
+                $webApp->update(['status' => 'running']);
+            }
 
             $this->activityLog->log(
                 'webapp.started',
@@ -202,6 +208,7 @@ class WebAppController extends Controller
 
     /**
      * Stop a web app's process on the server.
+     * Branches on server->is_local.
      */
     public function stop(Request $request, Server $server, WebApp $webApp): JsonResponse
     {
@@ -209,10 +216,13 @@ class WebAppController extends Controller
         $this->authorizeWebAppBelongsToServer($webApp, $server);
 
         try {
-            $command = "docker compose -f {$webApp->docker_compose_path} down 2>&1";
-            $output = $this->connectionService->execute($server, $command);
-
-            $webApp->update(['status' => 'stopped']);
+            if ($server->is_local) {
+                $output = $this->localDeploymentService->stop($webApp);
+            } else {
+                $command = "docker compose -f {$webApp->docker_compose_path} down 2>&1";
+                $output = $this->connectionService->execute($server, $command);
+                $webApp->update(['status' => 'stopped']);
+            }
 
             $this->activityLog->log(
                 'webapp.stopped',
@@ -236,6 +246,7 @@ class WebAppController extends Controller
 
     /**
      * Restart a web app's process on the server.
+     * Branches on server->is_local.
      */
     public function restart(Request $request, Server $server, WebApp $webApp): JsonResponse
     {
@@ -243,15 +254,12 @@ class WebAppController extends Controller
         $this->authorizeWebAppBelongsToServer($webApp, $server);
 
         try {
-            $appType = $webApp->app_type;
-            $containerName = $webApp->docker_container_name ?? $webApp->name;
-            $command = match ($appType) {
-                'nodejs' => "docker compose -f {$webApp->docker_compose_path} restart 2>&1",
-                'laravel', 'react', 'static', 'custom' => "docker compose -f {$webApp->docker_compose_path} restart 2>&1",
-                default => "docker restart {$containerName} 2>&1",
-            };
-
-            $output = $this->connectionService->execute($server, $command);
+            if ($server->is_local) {
+                $output = $this->localDeploymentService->restart($webApp);
+            } else {
+                $command = "docker compose -f {$webApp->docker_compose_path} restart 2>&1";
+                $output = $this->connectionService->execute($server, $command);
+            }
 
             $this->activityLog->log(
                 'webapp.restarted',

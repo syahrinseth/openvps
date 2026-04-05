@@ -22,7 +22,7 @@ class ServerConnectionService
         $authenticated = false;
 
         if ($server->ssh_private_key) {
-            $key = PublicKeyLoader::load($server->ssh_private_key);
+            $key = PublicKeyLoader::load($server->ssh_private_key, $server->ssh_key_passphrase ?? false);
             $authenticated = $ssh->login($server->ssh_user, $key);
         } elseif ($server->ssh_password) {
             $authenticated = $ssh->login($server->ssh_user, $server->ssh_password);
@@ -57,6 +57,33 @@ class ServerConnectionService
     }
 
     /**
+     * Execute a command on the server and return both output and exit status.
+     *
+     * @return array{output: string, exit_status: int}
+     */
+    public function executeWithStatus(Server $server, string $command): array
+    {
+        $ssh = $this->connect($server);
+
+        $output = $ssh->exec($command);
+        $exitStatus = (int) $ssh->getExitStatus();
+
+        if ($exitStatus !== 0) {
+            $stderr = $ssh->getStdError();
+            Log::warning("Command failed on server [{$server->name}]: {$command}", [
+                'exit_status' => $exitStatus,
+                'stderr' => $stderr,
+                'stdout' => $output,
+            ]);
+        }
+
+        return [
+            'output' => $output,
+            'exit_status' => $exitStatus,
+        ];
+    }
+
+    /**
      * Upload a file to the server.
      */
     public function upload(Server $server, string $localPath, string $remotePath): bool
@@ -67,7 +94,7 @@ class ServerConnectionService
         $authenticated = false;
 
         if ($server->ssh_private_key) {
-            $key = PublicKeyLoader::load($server->ssh_private_key);
+            $key = PublicKeyLoader::load($server->ssh_private_key, $server->ssh_key_passphrase ?? false);
             $authenticated = $sftp->login($server->ssh_user, $key);
         } elseif ($server->ssh_password) {
             $authenticated = $sftp->login($server->ssh_user, $server->ssh_password);
@@ -91,7 +118,7 @@ class ServerConnectionService
         $authenticated = false;
 
         if ($server->ssh_private_key) {
-            $key = PublicKeyLoader::load($server->ssh_private_key);
+            $key = PublicKeyLoader::load($server->ssh_private_key, $server->ssh_key_passphrase ?? false);
             $authenticated = $sftp->login($server->ssh_user, $key);
         } elseif ($server->ssh_password) {
             $authenticated = $sftp->login($server->ssh_user, $server->ssh_password);
@@ -112,6 +139,7 @@ class ServerConnectionService
         int $port,
         string $sshUser,
         ?string $sshPrivateKey,
+        ?string $sshKeyPassphrase,
         ?string $sshPassword,
     ): bool {
         try {
@@ -121,7 +149,7 @@ class ServerConnectionService
             $authenticated = false;
 
             if ($sshPrivateKey) {
-                $key = PublicKeyLoader::load($sshPrivateKey);
+                $key = PublicKeyLoader::load($sshPrivateKey, $sshKeyPassphrase ?? false);
                 $authenticated = $ssh->login($sshUser, $key);
             } elseif ($sshPassword) {
                 $authenticated = $ssh->login($sshUser, $sshPassword);

@@ -11,6 +11,7 @@ use App\Services\SslService;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class SslCertificateController extends Controller
 {
@@ -41,37 +42,53 @@ class SslCertificateController extends Controller
         $this->authorizeServerAccess($server);
 
         $validated = $request->validate([
-            'domain' => ['required', 'string', 'max:255'],
-            'web_app_id' => ['nullable', 'integer', 'exists:web_apps,id'],
+            'domain' => [
+                'required',
+                'string',
+                'max:255',
+                // RFC-1123 hostname: labels separated by dots, each label 1–63 chars, letters/digits/hyphens,
+                // cannot start or end with a hyphen, TLD must be at least 2 alphabetic chars.
+                'regex:/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/',
+            ],
+            'web_app_id'      => ['nullable', 'integer', 'exists:web_apps,id'],
             'nginx_config_id' => ['nullable', 'integer', 'exists:nginx_configs,id'],
+        ], [
+            'domain.regex' => 'The domain must be a valid hostname (e.g. example.com or sub.example.com).',
         ]);
 
         try {
             $certificate = $this->sslService->requestCertificate($server, $validated['domain']);
 
-            if (isset($validated['web_app_id'])) {
+            if (!empty($validated['web_app_id'])) {
                 $certificate->update(['web_app_id' => $validated['web_app_id']]);
             }
-            if (isset($validated['nginx_config_id'])) {
+            if (!empty($validated['nginx_config_id'])) {
                 $certificate->update(['nginx_config_id' => $validated['nginx_config_id']]);
             }
 
-            $this->activityLog->log(
-                'ssl.created',
-                "SSL certificate for '{$validated['domain']}' was requested",
-                $request->user(),
-                $server,
-                $certificate,
-            );
+            try {
+                $this->activityLog->log(
+                    'ssl.created',
+                    "SSL certificate for '{$validated['domain']}' was requested",
+                    $request->user(),
+                    $server,
+                    $certificate,
+                );
+            } catch (Exception $e) {
+                // Activity logging is non-critical — log and continue
+                \Illuminate\Support\Facades\Log::warning('Failed to write SSL activity log', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             return response()->json([
                 'message' => 'SSL certificate requested successfully.',
-                'data' => new SslCertificateResource($certificate),
+                'data'    => new SslCertificateResource($certificate),
             ], 201);
         } catch (Exception $e) {
             return response()->json([
                 'message' => 'Failed to request SSL certificate.',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
@@ -87,7 +104,7 @@ class SslCertificateController extends Controller
         $daysRemaining = $this->sslService->checkExpiration($sslCertificate);
 
         return response()->json([
-            'data' => new SslCertificateResource($sslCertificate),
+            'data'                 => new SslCertificateResource($sslCertificate),
             'days_until_expiration' => $daysRemaining,
         ]);
     }
@@ -103,13 +120,19 @@ class SslCertificateController extends Controller
         try {
             $this->sslService->revokeCertificate($server, $sslCertificate);
 
-            $this->activityLog->log(
-                'ssl.revoked',
-                "SSL certificate for '{$sslCertificate->domain}' was revoked",
-                $request->user(),
-                $server,
-                $sslCertificate,
-            );
+            try {
+                $this->activityLog->log(
+                    'ssl.revoked',
+                    "SSL certificate for '{$sslCertificate->domain}' was revoked",
+                    $request->user(),
+                    $server,
+                    $sslCertificate,
+                );
+            } catch (Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to write SSL revoke activity log', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             return response()->json([
                 'message' => 'SSL certificate revoked successfully.',
@@ -117,7 +140,7 @@ class SslCertificateController extends Controller
         } catch (Exception $e) {
             return response()->json([
                 'message' => 'Failed to revoke SSL certificate.',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
@@ -133,23 +156,29 @@ class SslCertificateController extends Controller
         try {
             $renewed = $this->sslService->renewCertificate($server, $sslCertificate);
 
-            $this->activityLog->log(
-                'ssl.renewed',
-                "SSL certificate for '{$sslCertificate->domain}' was renewed",
-                $request->user(),
-                $server,
-                $sslCertificate,
-            );
+            try {
+                $this->activityLog->log(
+                    'ssl.renewed',
+                    "SSL certificate for '{$sslCertificate->domain}' was renewed",
+                    $request->user(),
+                    $server,
+                    $sslCertificate,
+                );
+            } catch (Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to write SSL renew activity log', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             return response()->json([
                 'message' => $renewed ? 'SSL certificate renewed successfully.' : 'SSL certificate renewal failed.',
                 'renewed' => $renewed,
-                'data' => new SslCertificateResource($sslCertificate->fresh()),
+                'data'    => new SslCertificateResource($sslCertificate->fresh()),
             ]);
         } catch (Exception $e) {
             return response()->json([
                 'message' => 'Failed to renew SSL certificate.',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }

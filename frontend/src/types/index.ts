@@ -27,6 +27,8 @@ export interface Server {
   os_type: string | null;
   os_version: string | null;
   status: 'active' | 'inactive' | 'unreachable';
+  /** true = control plane / local hosting; false = SSH-managed remote VPS */
+  is_local: boolean;
   provider: string;
   notes: string | null;
   last_connected_at: string | null;
@@ -38,11 +40,13 @@ export interface Server {
 export interface ServerFormData {
   name: string;
   hostname: string;
-  ip_address: string;
-  ssh_port: number;
-  ssh_user: string;
-  ssh_private_key: string;
+  ip_address?: string;
+  ssh_port?: number;
+  ssh_user?: string;
+  ssh_private_key?: string;
+  ssh_key_passphrase?: string;
   ssh_password?: string;
+  is_local?: boolean;
   provider: string;
   notes?: string;
 }

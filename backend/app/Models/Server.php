@@ -18,10 +18,12 @@ class Server extends Model
         'ssh_port',
         'ssh_user',
         'ssh_private_key',
+        'ssh_key_passphrase',
         'ssh_password',
         'os_type',
         'os_version',
         'status',
+        'is_local',
         'provider',
         'notes',
         'last_connected_at',
@@ -29,6 +31,7 @@ class Server extends Model
 
     protected $hidden = [
         'ssh_private_key',
+        'ssh_key_passphrase',
         'ssh_password',
     ];
 
@@ -36,9 +39,28 @@ class Server extends Model
     {
         return [
             'status' => 'string',
+            'is_local' => 'boolean',
             'ssh_private_key' => 'encrypted',
+            'ssh_key_passphrase' => 'encrypted',
             'ssh_password' => 'encrypted',
         ];
+    }
+
+    /**
+     * Returns 'local' for the control plane server, 'remote' for SSH-managed servers.
+     * Ref: TRAEFIK_MIGRATION_PLAN.md — Phase 3.2
+     */
+    public function getDeploymentModeAttribute(): string
+    {
+        return $this->is_local ? 'local' : 'remote';
+    }
+
+    /**
+     * Local servers do not require SSH credentials.
+     */
+    public function requiresSshCredentials(): bool
+    {
+        return !$this->is_local;
     }
 
     public function user()

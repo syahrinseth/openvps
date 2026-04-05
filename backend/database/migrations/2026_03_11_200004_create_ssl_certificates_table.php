@@ -20,6 +20,7 @@ return new class extends Migration
             $table->enum('type', ['letsencrypt', 'custom', 'self_signed']);
             $table->string('certificate_path');
             $table->string('private_key_path');
+            $table->string('chain_path')->nullable();
             $table->timestamp('issued_at')->nullable();
             $table->timestamp('expires_at')->nullable();
             $table->boolean('auto_renew')->default(true);
