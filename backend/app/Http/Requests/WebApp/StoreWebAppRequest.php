@@ -19,6 +19,7 @@ class StoreWebAppRequest extends FormRequest
             'app_type' => ['required', 'string', 'in:laravel,nodejs,react,static,custom'],
             'git_repository' => ['nullable', 'string', 'max:500'],
             'git_branch' => ['nullable', 'string', 'max:255'],
+            'git_token' => ['nullable', 'string', 'max:255'],
             'deploy_path' => ['required', 'string', 'max:500'],
             'docker_compose_path' => ['nullable', 'string', 'max:500'],
             'port' => ['nullable', 'integer', 'min:1', 'max:65535'],

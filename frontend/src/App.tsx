@@ -3,6 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
 import LoginPage from '@/pages/auth/LoginPage';
 import RegisterPage from '@/pages/auth/RegisterPage';
+import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
 import DashboardPage from '@/pages/DashboardPage';
 import ServerListPage from '@/pages/servers/ServerListPage';
 import ServerDetailPage from '@/pages/servers/ServerDetailPage';
@@ -10,6 +12,7 @@ import AddServerPage from '@/pages/servers/AddServerPage';
 import WebAppListPage from '@/pages/webapps/WebAppListPage';
 import WebAppDetailPage from '@/pages/webapps/WebAppDetailPage';
 import AddWebAppPage from '@/pages/webapps/AddWebAppPage';
+import EditWebAppPage from '@/pages/webapps/EditWebAppPage';
 import NginxListPage from '@/pages/nginx/NginxListPage';
 import SslListPage from '@/pages/ssl/SslListPage';
 import FirewallListPage from '@/pages/firewall/FirewallListPage';
@@ -64,6 +67,8 @@ export default function App() {
       {/* Guest Routes */}
       <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
       <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+      <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
+      <Route path="/reset-password" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
 
       {/* Protected Routes */}
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
@@ -73,6 +78,7 @@ export default function App() {
         <Route path="servers/:id" element={<ServerDetailPage />} />
         <Route path="web-apps" element={<WebAppListPage />} />
         <Route path="web-apps/create" element={<AddWebAppPage />} />
+        <Route path="web-apps/:serverId/:appId/edit" element={<EditWebAppPage />} />
         <Route path="web-apps/:serverId/:appId" element={<WebAppDetailPage />} />
         <Route path="nginx" element={<NginxListPage />} />
         <Route path="ssl" element={<SslListPage />} />

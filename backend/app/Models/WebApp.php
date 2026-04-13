@@ -18,6 +18,9 @@ class WebApp extends Model
         'app_type',
         'git_repository',
         'git_branch',
+        'git_token',
+        'git_deploy_key',
+        'git_deploy_key_public',
         'deploy_path',
         'docker_compose_path',
         'port',
@@ -29,6 +32,8 @@ class WebApp extends Model
 
     protected $hidden = [
         'environment_variables',
+        'git_token',
+        'git_deploy_key',
     ];
 
     protected function casts(): array
@@ -39,6 +44,8 @@ class WebApp extends Model
             'port' => 'integer',
             'auto_deploy' => 'boolean',
             'environment_variables' => 'encrypted',
+            'git_token' => 'encrypted',
+            'git_deploy_key' => 'encrypted',
         ];
     }
 

@@ -19,6 +19,7 @@ class DeploymentResource extends JsonResource
             'branch' => $this->branch,
             'status' => $this->status,
             'log' => $this->output,
+            'error_output' => $this->error_output,
             'started_at' => $this->started_at,
             'completed_at' => $this->completed_at,
             'rolled_back_at' => $this->rolled_back_at,

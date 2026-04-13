@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -19,7 +19,10 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+
+  const successMessage = (location.state as { message?: string } | null)?.message ?? '';
 
   const {
     register,
@@ -54,6 +57,12 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          {successMessage && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+              {successMessage}
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
               {error}
@@ -77,6 +86,14 @@ export default function LoginPage() {
               error={errors.password?.message}
               {...register('password')}
             />
+            <div className="text-right -mt-1">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <Button type="submit" isLoading={isLoading} className="w-full">
               Sign in
             </Button>

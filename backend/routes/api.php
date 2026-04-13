@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\CronJobController;
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 
 // GitHub webhook handler (public - validated by secret)
 Route::post('/webhooks/github/{secret}', [GithubWebhookController::class, 'handleWebhook']);
@@ -46,9 +48,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('web-apps', WebAppController::class);
         Route::post('/web-apps/{web_app}/deploy', [WebAppController::class, 'deploy']);
         Route::post('/web-apps/{web_app}/setup', [WebAppController::class, 'setup']);
+        Route::post('/web-apps/{web_app}/generate-deploy-key', [WebAppController::class, 'generateDeployKey']);
         Route::post('/web-apps/{web_app}/start', [WebAppController::class, 'start']);
         Route::post('/web-apps/{web_app}/stop', [WebAppController::class, 'stop']);
         Route::post('/web-apps/{web_app}/restart', [WebAppController::class, 'restart']);
+        Route::get('/web-apps/{web_app}/env-example', [WebAppController::class, 'getEnvExample']);
+        Route::post('/web-apps/{web_app}/run-script', [WebAppController::class, 'runScript']);
 
         // Nginx
         Route::apiResource('nginx', NginxController::class);

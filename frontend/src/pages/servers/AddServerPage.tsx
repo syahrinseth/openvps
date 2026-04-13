@@ -17,7 +17,7 @@ const serverSchema = z
   .object({
     name: z.string().min(1, 'Name is required'),
     hostname: z.string().min(1, 'Hostname is required'),
-    is_local: z.boolean().default(false),
+    is_local: z.boolean(),
     ip_address: z.string().optional(),
     ssh_port: z.number().min(1).max(65535).optional(),
     ssh_user: z.string().optional(),

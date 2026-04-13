@@ -20,6 +20,7 @@ const webAppSchema = z.object({
   app_type: z.enum(['laravel', 'nodejs', 'react', 'static', 'custom']),
   git_repository: z.string().optional(),
   git_branch: z.string().optional(),
+  git_token: z.string().optional(),
   deploy_path: z.string().min(1, 'Deploy path is required'),
   docker_compose_path: z.string().optional(),
   port: z
@@ -74,6 +75,7 @@ export default function AddWebAppPage() {
       await api.post(`/servers/${server_id}/web-apps`, {
         ...rest,
         port: port ? Number(port) : undefined,
+        git_token: rest.git_token || undefined,
       });
       toast.success('Web app created successfully');
       navigate(`/web-apps`);
@@ -153,6 +155,14 @@ export default function AddWebAppPage() {
               {...form.register('git_branch')}
             />
           </div>
+
+          <Input
+            id="git_token"
+            label="Git Access Token (for private repos)"
+            type="password"
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+            {...form.register('git_token')}
+          />
 
           <Input
             id="deploy_path"

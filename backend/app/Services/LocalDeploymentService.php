@@ -29,7 +29,8 @@ class LocalDeploymentService
      * Initialize a local web app:
      *  1. Ensure deploy_path exists on the local host
      *  2. Clone the git repository
-     *  3. Generate docker-compose.yml from a local stub if not present
+     *  3. Load .env.example into environment_variables if not set, write .env
+     *  4. Generate docker-compose.yml from a local stub if not present
      */
     public function setup(WebApp $webApp): array
     {
@@ -47,7 +48,9 @@ class LocalDeploymentService
 
         $log .= $this->ensureDeployPath($deployPath);
         $log .= $this->cloneRepository($webApp, $deployPath);
+        $log .= $this->setupEnvFile($webApp, $deployPath);
         $log .= $this->generateDockerCompose($webApp, $deployPath);
+        $log .= $this->generateDockerfile($webApp, $deployPath);
 
         $webApp->update(['status' => 'stopped']);
 
@@ -55,7 +58,7 @@ class LocalDeploymentService
     }
 
     /**
-     * Deploy a locally-hosted web app (git pull + docker compose up -d --build).
+     * Deploy a locally-hosted web app (git pull + write .env + docker compose up -d --build).
      */
     public function deploy(WebApp $webApp, ?string $commitHash = null): Deployment
     {
@@ -81,12 +84,49 @@ class LocalDeploymentService
             $branch     = $webApp->git_branch ?? 'main';
             $output     = '';
 
-            // Pull latest code
-            if ($commitHash) {
-                $output .= $this->run(['git', 'fetch', 'origin'], $deployPath);
-                $output .= $this->run(['git', 'checkout', $commitHash], $deployPath);
+            // Determine auth mode and pull latest code
+            if (!empty($webApp->git_deploy_key)) {
+                // Deploy key auth — write temp key for git operations
+                $sshRemote = $this->toSshUrl($webApp->git_repository); // HTTPS → git@HOST:PATH
+                $keyPath = tempnam(sys_get_temp_dir(), 'deploy_key_');
+                try {
+                    $encoded  = base64_encode($webApp->git_deploy_key);
+                    $writeCmd = "echo {$encoded} | base64 -d > " . escapeshellarg($keyPath) . " && chmod 600 " . escapeshellarg($keyPath);
+                    shell_exec($writeCmd);
+
+                    $sshCmd = "ssh -i {$keyPath} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null";
+                    $env    = ['GIT_SSH_COMMAND' => $sshCmd] + $_ENV;
+
+                    if ($commitHash) {
+                        $output .= $this->runWithEnv(['git', 'fetch', $sshRemote], $deployPath, $env);
+                        $output .= $this->runWithEnv(['git', 'checkout', $commitHash], $deployPath, $env);
+                    } else {
+                        $output .= $this->runWithEnv(['git', 'pull', $sshRemote, $branch], $deployPath, $env);
+                    }
+                } finally {
+                    if (file_exists($keyPath)) {
+                        @unlink($keyPath);
+                    }
+                }
             } else {
-                $output .= $this->run(['git', 'pull', 'origin', $branch], $deployPath);
+                // PAT or public auth
+                $remoteUrl = $webApp->git_repository;
+                if (!empty($webApp->git_token)) {
+                    $remoteUrl = preg_replace('#^(https?://)#', '$1' . rawurlencode($webApp->git_token) . '@', $remoteUrl);
+                }
+
+                if ($commitHash) {
+                    $output .= $this->run(['git', 'fetch', $remoteUrl], $deployPath);
+                    $output .= $this->run(['git', 'checkout', $commitHash], $deployPath);
+                } else {
+                    $output .= $this->run(['git', 'pull', $remoteUrl, $branch], $deployPath);
+                }
+            }
+
+            // Write .env file from environment_variables if set
+            if (!empty($webApp->environment_variables)) {
+                file_put_contents("{$deployPath}/.env", $webApp->environment_variables);
+                $output .= "\n--- .env written ---\n";
             }
 
             // Capture current commit info
@@ -101,6 +141,22 @@ class LocalDeploymentService
                     ['docker', 'compose', '-f', $webApp->docker_compose_path, 'up', '-d', '--build'],
                     $composeDir
                 );
+
+                // Post-deploy: run composer install for Laravel apps using the composer Docker image.
+                // This mounts the deploy path into a throwaway composer:2 container so we have no
+                // dependency on composer being present in the app container itself.
+                if ($webApp->app_type === 'laravel') {
+                    try {
+                        $output .= "\n--- composer install ---\n";
+                        $output .= $this->run(
+                            ['docker', 'run', '--rm', '-v', "{$deployPath}:/app", '-w', '/app', 'composer:2', 'install', '--no-dev', '--optimize-autoloader', '--ignore-platform-reqs'],
+                            $composeDir
+                        );
+                    } catch (Exception $e) {
+                        $output .= "\n[WARNING] composer install failed: " . $e->getMessage() . "\n";
+                        Log::warning("composer install failed for [{$webApp->name}]", ['error' => $e->getMessage()]);
+                    }
+                }
             }
 
             $deployment->update([
@@ -246,6 +302,36 @@ class LocalDeploymentService
     // ── Private helpers ────────────────────────────────────────────────────
 
     /**
+     * If environment_variables is not set on the web app, read .env.example
+     * from the deploy path and store it as the default. Then write .env to disk.
+     */
+    private function setupEnvFile(WebApp $webApp, string $deployPath): string
+    {
+        $log            = "==> Setting up .env file...\n";
+        $envPath        = "{$deployPath}/.env";
+        $envExamplePath = "{$deployPath}/.env.example";
+
+        // Auto-populate from .env.example if environment_variables not set yet
+        if (empty($webApp->environment_variables) && file_exists($envExamplePath)) {
+            $exampleContent = file_get_contents($envExamplePath);
+            if (!empty(trim($exampleContent))) {
+                $webApp->update(['environment_variables' => $exampleContent]);
+                $log .= "    Loaded .env.example as default environment variables.\n";
+            }
+        }
+
+        // Write .env if we have content
+        if (!empty($webApp->environment_variables)) {
+            file_put_contents($envPath, $webApp->environment_variables);
+            $log .= "    .env file written to {$envPath}.\n";
+        } else {
+            $log .= "    No environment variables set — .env not written.\n";
+        }
+
+        return $log;
+    }
+
+    /**
      * Run a local process and return combined stdout+stderr output.
      *
      * @param  string[]  $command
@@ -254,6 +340,29 @@ class LocalDeploymentService
     private function run(array $command, string $cwd): string
     {
         $process = new Process($command, $cwd, timeout: self::PROCESS_TIMEOUT);
+        $process->run();
+
+        $output = $process->getOutput() . $process->getErrorOutput();
+
+        if (!$process->isSuccessful()) {
+            throw new Exception(
+                "Command [" . implode(' ', $command) . "] failed (exit {$process->getExitCode()}):\n{$output}"
+            );
+        }
+
+        return $output;
+    }
+
+    /**
+     * Run a local process with a custom environment and return combined stdout+stderr output.
+     *
+     * @param  string[]             $command
+     * @param  array<string,string> $env
+     * @throws Exception on non-zero exit code
+     */
+    private function runWithEnv(array $command, string $cwd, array $env): string
+    {
+        $process = new Process($command, $cwd, $env, null, self::PROCESS_TIMEOUT);
         $process->run();
 
         $output = $process->getOutput() . $process->getErrorOutput();
@@ -298,16 +407,99 @@ class LocalDeploymentService
             );
         }
 
-        $output = $this->run(
-            ['git', 'clone', '--branch', $branch, '--single-branch', $repo, $deployPath],
-            sys_get_temp_dir()
-        );
+        if (!empty($webApp->git_deploy_key)) {
+            // Deploy key auth
+            $output = $this->cloneWithDeployKey($webApp, $deployPath, $branch);
+        } elseif (!empty($webApp->git_token)) {
+            // PAT auth — inject token into HTTPS URL
+            $cloneUrl = preg_replace('#^(https?://)#', '$1' . rawurlencode($webApp->git_token) . '@', $repo);
+            $output   = $this->run(
+                ['git', 'clone', '--branch', $branch, '--single-branch', $cloneUrl, $deployPath],
+                sys_get_temp_dir()
+            );
+        } else {
+            // Public clone
+            $output = $this->run(
+                ['git', 'clone', '--branch', $branch, '--single-branch', $repo, $deployPath],
+                sys_get_temp_dir()
+            );
+        }
 
         if (!is_dir("{$deployPath}/.git")) {
             throw new Exception("Git clone failed for [{$repo}].\nOutput: {$output}");
         }
 
         $log .= "    Repository cloned successfully.\n";
+        return $log;
+    }
+
+    private function cloneWithDeployKey(WebApp $webApp, string $deployPath, string $branch): string
+    {
+        $repo    = $this->toSshUrl($webApp->git_repository); // HTTPS → git@HOST:PATH
+        $keyPath = tempnam(sys_get_temp_dir(), 'deploy_key_');
+        try {
+            // Write key safely via base64
+            $encoded = base64_encode($webApp->git_deploy_key);
+            $writeCmd = "echo {$encoded} | base64 -d > " . escapeshellarg($keyPath) . " && chmod 600 " . escapeshellarg($keyPath);
+            shell_exec($writeCmd);
+
+            $sshCmd  = "ssh -i {$keyPath} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null";
+            $env     = ['GIT_SSH_COMMAND' => $sshCmd] + $_ENV;
+            $process = new \Symfony\Component\Process\Process(
+                ['git', 'clone', '--branch', $branch, '--single-branch', $repo, $deployPath],
+                sys_get_temp_dir(),
+                $env,
+                null,
+                self::PROCESS_TIMEOUT
+            );
+            $process->run();
+            $output = $process->getOutput() . $process->getErrorOutput();
+
+            if (!$process->isSuccessful()) {
+                throw new Exception(
+                    "git clone (deploy key) failed (exit {$process->getExitCode()}):\n{$output}"
+                );
+            }
+
+            return $output;
+        } finally {
+            if (file_exists($keyPath)) {
+                @unlink($keyPath);
+            }
+        }
+    }
+
+    private function generateDockerfile(WebApp $webApp, string $deployPath): string
+    {
+        $appType      = $webApp->app_type ?? 'custom';
+        $stubPath     = resource_path("stubs/dockerfile/{$appType}");
+        $dockerDir    = "{$deployPath}/docker";
+        $dockerfilePath = "{$dockerDir}/Dockerfile";
+        $log          = "==> Checking for docker/Dockerfile at: {$dockerfilePath}\n";
+
+        // Only generate if a stub exists for this app type
+        if (!file_exists($stubPath)) {
+            $log .= "    No Dockerfile stub for app type '{$appType}' — skipping.\n";
+            return $log;
+        }
+
+        if (file_exists($dockerfilePath)) {
+            $log .= "    docker/Dockerfile already exists — skipping generation.\n";
+            return $log;
+        }
+
+        if (!is_dir($dockerDir) && !mkdir($dockerDir, 0755, true) && !is_dir($dockerDir)) {
+            throw new Exception("Failed to create docker directory at [{$dockerDir}].");
+        }
+
+        $content = file_get_contents($stubPath);
+        file_put_contents($dockerfilePath, $content);
+
+        if (!file_exists($dockerfilePath)) {
+            throw new Exception("Failed to generate docker/Dockerfile at [{$dockerfilePath}].");
+        }
+
+        $log .= "    docker/Dockerfile generated at {$dockerfilePath}.\n";
         return $log;
     }
 
@@ -338,7 +530,37 @@ class LocalDeploymentService
         return $log;
     }
 
-    private function buildDockerComposeContent(WebApp $webApp, string $deployPath): string
+    /**
+     * Regenerate the docker-compose.yml from the current app config, overwriting
+     * any existing file.  Unlike generateDockerCompose(), this method does NOT skip
+     * when the file already exists — it is intended for config changes such as a
+     * domain update that must be reflected in the Traefik Host() label.
+     *
+     * Returns a log string describing what was done.
+     */
+    public function regenerateDockerCompose(WebApp $webApp): string
+    {
+        $composePath = $webApp->docker_compose_path;
+
+        if (empty($composePath)) {
+            return "==> Skipping compose regeneration: no docker_compose_path set yet.\n";
+        }
+
+        $log        = "==> Regenerating docker-compose.yml at: {$composePath}\n";
+        $deployPath = dirname($composePath);
+        $content    = $this->buildDockerComposeContent($webApp, $deployPath);
+
+        file_put_contents($composePath, $content);
+
+        if (!file_exists($composePath)) {
+            throw new Exception("Failed to write docker-compose.yml at [{$composePath}].");
+        }
+
+        $log .= "    docker-compose.yml regenerated with domain [{$webApp->domain}].\n";
+        return $log;
+    }
+
+    protected function buildDockerComposeContent(WebApp $webApp, string $deployPath): string
     {
         $appType  = $webApp->app_type ?? 'custom';
         $stubPath = resource_path("stubs/docker-compose/local/{$appType}.yml");
@@ -372,5 +594,19 @@ class LocalDeploymentService
         } catch (Exception $e) {
             Log::warning('Failed to send deployment email', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Convert an HTTPS repository URL to SSH format so that GIT_SSH_COMMAND
+     * is honoured by git (git ignores GIT_SSH_COMMAND for HTTPS URLs).
+     *
+     * https://github.com/user/repo.git  →  git@github.com:user/repo.git
+     */
+    private function toSshUrl(string $url): string
+    {
+        if (str_starts_with($url, 'git@') || str_starts_with($url, 'ssh://')) {
+            return $url;
+        }
+        return preg_replace('#^https?://([^/]+)/(.+)$#', 'git@$1:$2', $url);
     }
 }

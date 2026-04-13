@@ -65,23 +65,79 @@ class DeploymentService
         // Notify: deployment started
         broadcast(new DeploymentUpdated($deployment))->toOthers();
 
+        // Track temp key path so we can clean it up on failure
+        $deployKeyPath = null;
+
         try {
             $deployment->update(['status' => 'in_progress']);
             broadcast(new DeploymentUpdated($deployment->fresh()))->toOthers();
 
             $deployPath = $webApp->deploy_path;
-            $branch = $webApp->git_branch ?? 'main';
-            $output = '';
+            $branch     = $webApp->git_branch ?? 'main';
+            $safeBranch = escapeshellarg($branch);
+            $output     = '';
 
-            // Pull latest code
-            if ($commitHash) {
-                $output .= $this->connection->execute($server, "cd {$deployPath} && git fetch origin && git checkout {$commitHash} 2>&1");
+            if (!empty($webApp->git_deploy_key)) {
+                // ── SSH deploy key ───────────────────────────────────────────
+                $deployKeyPath  = '/tmp/openvps_deploy_key_' . uniqid();
+                $safeKeyPath    = escapeshellarg($deployKeyPath);
+                $safeEncoded    = escapeshellarg(base64_encode($webApp->git_deploy_key));
+                $gitSsh         = escapeshellarg("ssh -i {$deployKeyPath} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null");
+                $sshRemote      = escapeshellarg($this->toSshUrl($webApp->git_repository));
+
+                $this->connection->execute($server,
+                    "echo {$safeEncoded} | base64 -d > {$safeKeyPath} && chmod 600 {$safeKeyPath}"
+                );
+
+                if ($commitHash) {
+                    $safeHash = escapeshellarg($commitHash);
+                    $output .= $this->connection->execute($server,
+                        "cd {$deployPath} && GIT_SSH_COMMAND={$gitSsh} git fetch {$sshRemote} && git checkout {$safeHash} 2>&1"
+                    );
+                } else {
+                    $output .= $this->connection->execute($server,
+                        "cd {$deployPath} && GIT_SSH_COMMAND={$gitSsh} git pull {$sshRemote} {$safeBranch} 2>&1"
+                    );
+                }
+
+                $this->connection->execute($server, "rm -f {$safeKeyPath} 2>/dev/null || true");
+                $deployKeyPath = null; // mark cleaned up
             } else {
-                $output .= $this->connection->execute($server, "cd {$deployPath} && git pull origin {$branch} 2>&1");
+                // ── HTTPS — optional PAT injection ───────────────────────────
+                $remoteUrl = $webApp->git_repository;
+                if (!empty($webApp->git_token)) {
+                    $remoteUrl = preg_replace(
+                        '#^(https?://)#',
+                        '$1' . rawurlencode($webApp->git_token) . '@',
+                        $remoteUrl
+                    );
+                }
+                $safeRemote = escapeshellarg($remoteUrl);
+
+                if ($commitHash) {
+                    $safeHash = escapeshellarg($commitHash);
+                    $output .= $this->connection->execute($server,
+                        "cd {$deployPath} && git fetch {$safeRemote} && git checkout {$safeHash} 2>&1"
+                    );
+                } else {
+                    $output .= $this->connection->execute($server,
+                        "cd {$deployPath} && git pull {$safeRemote} {$safeBranch} 2>&1"
+                    );
+                }
+            }
+
+            // Write .env file from environment_variables if set
+            if (!empty($webApp->environment_variables)) {
+                $safeEnvPath    = escapeshellarg("{$deployPath}/.env");
+                $safeEnvEncoded = escapeshellarg(base64_encode($webApp->environment_variables));
+                $this->connection->execute($server,
+                    "echo {$safeEnvEncoded} | base64 -d > {$safeEnvPath}"
+                );
+                $output .= "\n--- .env written ---\n";
             }
 
             // Get the current commit info
-            $currentHash = trim($this->connection->execute($server, "cd {$deployPath} && git rev-parse HEAD 2>&1"));
+            $currentHash   = trim($this->connection->execute($server, "cd {$deployPath} && git rev-parse HEAD 2>&1"));
             $commitMessage = trim($this->connection->execute($server, "cd {$deployPath} && git log -1 --pretty=%B 2>&1"));
 
             // Run deploy script if defined (docker compose up -d for docker-based apps)
@@ -91,12 +147,28 @@ class DeploymentService
                 $output .= $this->connection->execute($server, "cd {$composeDir} && docker compose up -d --build 2>&1");
             }
 
+            // Post-deploy: run composer install for Laravel apps using the composer Docker image.
+            // This mounts the deploy path into a throwaway composer:2 container so we have no
+            // dependency on composer being present in the app container itself.
+            if ($webApp->app_type === 'laravel' && !empty($deployPath)) {
+                try {
+                    $safeDeployPath = escapeshellarg($deployPath);
+                    $output .= "\n--- composer install ---\n";
+                    $output .= $this->connection->execute($server,
+                        "docker run --rm -v {$safeDeployPath}:/app -w /app composer:2 install --no-dev --optimize-autoloader --ignore-platform-reqs 2>&1"
+                    );
+                } catch (Exception $e) {
+                    $output .= "\n[WARNING] composer install failed: " . $e->getMessage() . "\n";
+                    Log::warning("composer install failed for [{$webApp->name}]", ['error' => $e->getMessage()]);
+                }
+            }
+
             $deployment->update([
-                'status' => 'success',
-                'commit_hash' => $currentHash ?: $commitHash,
+                'status'         => 'success',
+                'commit_hash'    => $currentHash ?: $commitHash,
                 'commit_message' => $commitMessage ?: null,
-                'output' => $output,
-                'completed_at' => now(),
+                'output'         => $output,
+                'completed_at'   => now(),
             ]);
 
             $webApp->update(['status' => 'running']);
@@ -107,12 +179,17 @@ class DeploymentService
             // Send success email to the triggering user
             $this->sendDeploymentEmail($freshDeployment, 'success');
         } catch (Exception $e) {
+            // Clean up temp deploy key if the chain failed mid-way
+            if ($deployKeyPath) {
+                $this->connection->execute($server, "rm -f " . escapeshellarg($deployKeyPath) . " 2>/dev/null || true");
+            }
+
             Log::error("Deployment failed for web app [{$webApp->name}]", [
                 'error' => $e->getMessage(),
             ]);
 
             $deployment->update([
-                'status' => 'failed',
+                'status'       => 'failed',
                 'error_output' => $e->getMessage(),
                 'completed_at' => now(),
             ]);
@@ -235,5 +312,19 @@ class DeploymentService
         } catch (Exception $e) {
             Log::warning('Failed to send deployment email', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Convert an HTTPS repository URL to SSH format so that GIT_SSH_COMMAND
+     * is honoured by git (git ignores it for HTTPS URLs).
+     *
+     * https://github.com/user/repo.git  →  git@github.com:user/repo.git
+     */
+    private function toSshUrl(string $url): string
+    {
+        if (str_starts_with($url, 'git@') || str_starts_with($url, 'ssh://')) {
+            return $url;
+        }
+        return preg_replace('#^https?://([^/]+)/(.+)$#', 'git@$1:$2', $url);
     }
 }

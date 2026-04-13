@@ -61,12 +61,17 @@ export interface WebApp {
   app_type: 'laravel' | 'nodejs' | 'react' | 'static' | 'custom';
   git_repository: string | null;
   git_branch: string;
+  has_git_token: boolean;
+  has_git_deploy_key: boolean;
+  git_deploy_key_public: string | null;
   deploy_path: string;
   docker_compose_path: string | null;
   port: number | null;
   status: 'running' | 'stopped' | 'deploying' | 'failed' | 'maintenance';
   auto_deploy: boolean;
   docker_container_name: string | null;
+  environment_variables: string | null;
+  deployments?: Deployment[];
   created_at: string;
   updated_at: string;
 }
@@ -77,10 +82,12 @@ export interface WebAppFormData {
   app_type: string;
   git_repository?: string;
   git_branch: string;
+  git_token?: string;
   deploy_path: string;
   docker_compose_path?: string;
   port?: number;
   docker_container_name?: string;
+  environment_variables?: string | null;
   auto_deploy: boolean;
 }
 
@@ -180,6 +187,7 @@ export interface Deployment {
   branch: string | null;
   status: 'pending' | 'in_progress' | 'success' | 'failed' | 'rolled_back';
   log: string | null;
+  error_output: string | null;
   started_at: string | null;
   completed_at: string | null;
   rolled_back_at: string | null;
