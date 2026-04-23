@@ -51,6 +51,7 @@ class LocalDeploymentService
         $log .= $this->setupEnvFile($webApp, $deployPath);
         $log .= $this->generateDockerCompose($webApp, $deployPath);
         $log .= $this->generateDockerfile($webApp, $deployPath);
+        $log .= $this->generateNginxConfig($webApp, $deployPath);
 
         $webApp->update(['status' => 'stopped']);
 
@@ -527,6 +528,49 @@ class LocalDeploymentService
 
         $webApp->update(['docker_compose_path' => $composePath]);
         $log .= "    docker-compose.yml generated at {$composePath}.\n";
+        return $log;
+    }
+
+    /**
+     * Generate docker/nginx.conf/default.conf from a stub if it does not already exist.
+     * The stub is selected by app_type (laravel, nodejs, react, static, custom).
+     * This is idempotent — existing configs are never overwritten.
+     */
+    private function generateNginxConfig(WebApp $webApp, string $deployPath): string
+    {
+        $appType      = $webApp->app_type ?? 'custom';
+        $nginxDir     = "{$deployPath}/docker/nginx.conf";
+        $nginxPath    = "{$nginxDir}/default.conf";
+        $log          = "==> Checking for docker/nginx.conf/default.conf at: {$nginxPath}\n";
+
+        if (file_exists($nginxPath)) {
+            $log .= "    nginx config already exists — skipping generation.\n";
+            return $log;
+        }
+
+        $stubPath = resource_path("stubs/nginx/{$appType}");
+        if (!file_exists($stubPath)) {
+            $stubPath = resource_path('stubs/nginx/custom');
+        }
+
+        if (!file_exists($stubPath)) {
+            $log .= "    No nginx stub found for app type '{$appType}' — skipping.\n";
+            return $log;
+        }
+
+        if (!is_dir($nginxDir) && !mkdir($nginxDir, 0755, true) && !is_dir($nginxDir)) {
+            throw new Exception("Failed to create nginx config directory [{$nginxDir}].");
+        }
+
+        $content = file_get_contents($stubPath);
+        $content = str_replace('{{INTERNAL_PORT}}', '8080', $content);
+        file_put_contents($nginxPath, $content);
+
+        if (!file_exists($nginxPath)) {
+            throw new Exception("Failed to generate nginx config at [{$nginxPath}].");
+        }
+
+        $log .= "    nginx config generated at {$nginxPath} (app type: {$appType}).\n";
         return $log;
     }
 
